@@ -66,6 +66,7 @@ private:
     ComPtr<ID3D12CommandAllocator> m_computeAllocator;
     ComPtr<ID3D12RootSignature> m_computeRootSignature;
     ComPtr<ID3D12DescriptorHeap> m_cbSrvHeap;
+    ComPtr<ID3D12QueryHeap> m_queryHeap;
     ComPtr<ID3D12PipelineState> m_computePSO;
     ComPtr<ID3D12GraphicsCommandList> m_commandList;
     UINT m_cbSrvDescriptorSize;
@@ -78,6 +79,7 @@ private:
     ComPtr<ID3D12Resource> m_buffer1;
     ComPtr<ID3D12Resource> m_buffer2;
     ComPtr<ID3D12Resource> m_bufferResult;
+    ComPtr<ID3D12Resource> m_queryResult;
 
     SceneConstantBuffer m_constantBufferData;
     UINT8* m_pCbSrvDataBegin;
@@ -86,6 +88,7 @@ private:
     HANDLE m_computeFenceEvent;
     ComPtr<ID3D12Fence> m_computeFence;
     UINT64 m_computeFenceValue;
+    UINT64 m_timestampFrequency;
 
 	UINT m_M;
 	UINT m_N;
@@ -94,6 +97,7 @@ private:
 	UINT m_tileN;
 	UINT m_tileK;
 	UINT m_componentSize;
+	UINT m_computeCount = 5;
 	std::vector<float> buf1Data;
 	std::vector<float> buf2Data;
 

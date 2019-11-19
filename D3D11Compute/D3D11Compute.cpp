@@ -191,8 +191,8 @@ int __cdecl main()
     double total = 0.0;
     double total_kernel = 0.0;
     double minTime = 1e100;
-    int count = 3;
-    for (int it = 0; it < count; it++)
+    int computeCount = 5;
+    for (int it = 0; it < computeCount; it++)
     {
         g_pContext->Begin(pQueryDisjoint);
         g_pContext->End(pQueryTimestampStart);
@@ -268,13 +268,14 @@ int __cdecl main()
 #endif // PRINT_DATA
     }
 
-    double avg_time = total / (count - 1);
-    double avg_kernel = total_kernel / (count - 1);
-    printf("Avg Host GFlops = %f, time = %fms\n (Avg kernel GFlops = %f, Peak Kernel GFlops = %f)\n",
-           flops / avg_time / 10000 / 100, avg_time,
+    double avg_time = total / (computeCount - 1);
+    double avg_kernel = total_kernel / (computeCount - 1);
+    printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n"
+		    "Avg_time = %f ms, Avg_kernel_time = %f ms, min_time = %f ms\n",
+           flops / avg_time / 10000 / 100,
            flops / avg_kernel / 10000 / 100,
-           flops / minTime / 10000 / 100);
-    printf( "Cleaning up...\n" );
+           flops / minTime / 10000 / 100, avg_time, avg_kernel, minTime);
+   // printf( "Cleaning up...\n" );
     SAFE_RELEASE(pQueryDisjoint);
     SAFE_RELEASE(pQueryTimestampStart);
     SAFE_RELEASE(pQueryTimestampEnd);

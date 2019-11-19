@@ -14,7 +14,7 @@
 #include "D3D12Sample.h"
 #include <chrono>
 
-#define PRINT_DATA
+//#define PRINT_DATA
 
 namespace
 {
@@ -132,7 +132,7 @@ void D3D12Sample::LoadPipeline()
     D3D12_COMMAND_QUEUE_DESC queueDesc = { D3D12_COMMAND_LIST_TYPE_COMPUTE, 0, D3D12_COMMAND_QUEUE_FLAG_NONE };
 
     ThrowIfFailed(m_d3d12Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
-
+    ThrowIfFailed(m_commandQueue->GetTimestampFrequency(&m_timestampFrequency));
     ThrowIfFailed(
         m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COMPUTE, IID_PPV_ARGS(&m_computeAllocator)));
 
@@ -169,7 +169,7 @@ void D3D12Sample::LoadAssets()
         {
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
         }
-        // Root signature for render pass2
+        // Root signature for compute pass.
         ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE);
         ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE);
         ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE);
@@ -390,14 +390,33 @@ void D3D12Sample::LoadSizeDependentResources()
             uavHandle.Offset(3, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1. Third one is for buffer2.
             m_d3d12Device->CreateUnorderedAccessView(m_bufferResult.Get(), nullptr, &uavDesc, uavHandle);
         }
+
+    // Create the query result buffer.
+    {
+        // Two timestamps for each frame.
+        const UINT resultCount = 2 * m_computeCount;
+        const UINT resultBufferSize = resultCount * sizeof(UINT64);
+        D3D12_QUERY_HEAP_DESC timestampHeapDesc = {};
+        timestampHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+        timestampHeapDesc.Count = resultCount;
+
+        ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(resultBufferSize),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            nullptr,
+            IID_PPV_ARGS(&m_queryResult)
+            ));
+        ThrowIfFailed(m_d3d12Device->CreateQueryHeap(&timestampHeapDesc, IID_PPV_ARGS(&m_queryHeap)));
+    }
 }
 
 void D3D12Sample::RunCompute()
 {
     double flops = 2 * m_M * m_N * m_K;
     double total = 0.0;
-    int count = 3;
-    for (int it = 0; it < count; it++)
+    for (int it = 0; it < m_computeCount; it++)
     {
         // This will restart the command list and start a new record.
         ThrowIfFailed(m_computeAllocator->Reset());
@@ -416,8 +435,14 @@ void D3D12Sample::RunCompute()
         gpuSrvDescriptorHandle.Offset(2, m_cbSrvDescriptorSize);
         m_commandList->SetComputeRootDescriptorTable(2, gpuSrvDescriptorHandle);
 
-     //   m_commandList->SetPipelineState(m_computePSO.Get());
+        m_commandList->SetPipelineState(m_computePSO.Get());
+
+        // Get a timestamp at the before and after dispatch command.
+        const UINT timestampHeapIndex = 2 * it;
+        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
+        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
+        m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
 
         ThrowIfFailed(m_commandList->Close());
         auto start = std::chrono::steady_clock::now();
@@ -432,8 +457,44 @@ void D3D12Sample::RunCompute()
             total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
         }
     }
-    double avg_time = total / (count - 1);
-    printf("Avg Host GFlops = %f, time = %fms\n", flops / avg_time / 10000 / 100, avg_time);
+    double avg_time = total / (m_computeCount - 1);
+    double total_kernel = 0;
+    double minTime = 1e100;
+
+    // Get the timestamp values from the result buffers.
+    D3D12_RANGE readRange = {};
+    const D3D12_RANGE emptyRange = {};
+    for (UINT i = 0; i < m_computeCount; i++)
+    {
+        readRange.Begin = (2 * i) * sizeof(UINT64);
+        readRange.End = readRange.Begin + 2 * sizeof(UINT64);
+
+        void* pData = nullptr;
+        ThrowIfFailed(m_queryResult->Map(0, &readRange, &pData));
+
+        const UINT64* pTimestamps = reinterpret_cast<UINT64*>(static_cast<UINT8*>(pData) + readRange.Begin);
+        const UINT64 timeStampDelta = pTimestamps[1] - pTimestamps[0];
+
+        // Unmap with an empty range (written range).
+        m_queryResult->Unmap(0, &emptyRange);
+
+        // Calculate the GPU execution time in milliseconds.
+        const UINT64 gpuTimeMS =  (timeStampDelta * 1000) / m_timestampFrequency;
+        // Don't consider the first dispatch time.
+        if (i > 0)
+        {
+            if (gpuTimeMS < minTime)
+                minTime = gpuTimeMS;
+            total_kernel += gpuTimeMS;
+        }
+    }
+    double avg_kernel = 0;
+    avg_kernel = total_kernel / (m_computeCount - 1);
+    printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n"
+		    "Avg_time = %f ms, Avg_kernel_time = %f ms, min_time = %f ms\n",
+           flops / avg_time / 10000 / 100,
+           flops / avg_kernel / 10000 / 100,
+           flops / minTime / 10000 / 100, avg_time, avg_kernel, minTime);
 
     m_computeAllocator->Reset();
     m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get());
@@ -469,7 +530,6 @@ void D3D12Sample::RunCompute()
 
     result = pReadbackBufferData[m*m_N + n];
 
-    D3D12_RANGE emptyRange{ 0, 0 };
     readbackBuffer->Unmap(0, &emptyRange);
 
     float acc = 0.0;
