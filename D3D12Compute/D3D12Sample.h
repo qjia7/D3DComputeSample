@@ -97,7 +97,7 @@ private:
 	UINT m_tileN;
 	UINT m_tileK;
 	UINT m_componentSize;
-	UINT m_computeCount = 5;
+	UINT m_computeCount = 500;
 	std::vector<float> buf1Data;
 	std::vector<float> buf2Data;
 

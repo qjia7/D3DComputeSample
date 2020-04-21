@@ -14,7 +14,9 @@
 #include "D3D12Sample.h"
 #include <chrono>
 
-//#define PRINT_DATA
+// #define USE_STRUCTURED_BUFFERS
+// #define USE_SLM_8X8_4X16
+#define PRINT_DATA
 
 namespace
 {
@@ -48,6 +50,11 @@ D3D12Sample::D3D12Sample() :
     m_tileK(64),
 	m_componentSize(4)
 {
+#ifdef USE_SLM_8X8_4X16
+	m_tileM = 32; m_tileN = 128; m_tileK = 64;
+#else
+	m_tileM = 64; m_tileN = 64; m_tileK = 64;
+#endif  // USE_SLM_8X8_4X16
 }
 
 void D3D12Sample::Start()
@@ -191,7 +198,18 @@ void D3D12Sample::LoadAssets()
     descComputePSO.pRootSignature = m_computeRootSignature.Get();
     ComPtr<ID3DBlob> computeShader;
     UINT compileFlags = 0;
+#ifdef USE_SLM_8X8_4X16
     ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+#else
+    const D3D_SHADER_MACRO defines[] =
+    {
+#ifdef USE_STRUCTURED_BUFFERS
+        "USE_STRUCTURED_BUFFERS", "1",
+#endif
+        nullptr, nullptr
+    };
+    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines, nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+#endif
     descComputePSO.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
     ThrowIfFailed(m_d3d12Device->CreateComputePipelineState(&descComputePSO, IID_PPV_ARGS(&m_computePSO)));
     m_computePSO->SetName(L"Compute PSO");
@@ -308,12 +326,18 @@ void D3D12Sample::LoadSizeDependentResources()
         // Create SRV for the buffer1
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
+#ifdef USE_STRUCTURED_BUFFERS
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.Buffer.NumElements = elementCount / m_componentSize;
         srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+#else
+        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+        srvDesc.Buffer.NumElements = elementCount;
+        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+#endif // USE_STRUCTURED_BUFFERS
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
         srvHandle.Offset(1, m_cbSrvDescriptorSize); // First one is for constant buffer.
         m_d3d12Device->CreateShaderResourceView(m_buffer1.Get(), &srvDesc, srvHandle);
@@ -354,12 +378,18 @@ void D3D12Sample::LoadSizeDependentResources()
         // Create SRV for buffer2
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
+#ifdef USE_STRUCTURED_BUFFERS
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.Buffer.NumElements = elementCount / m_componentSize;
         srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+#else
+        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+        srvDesc.Buffer.NumElements = elementCount;
+        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+#endif
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
         srvHandle.Offset(2, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1
         m_d3d12Device->CreateShaderResourceView(m_buffer2.Get(), &srvDesc, srvHandle);
@@ -381,11 +411,17 @@ void D3D12Sample::LoadSizeDependentResources()
             // Create UAV for bufferResult
             D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
             uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-            uavDesc.Format = DXGI_FORMAT_UNKNOWN;
             uavDesc.Buffer.FirstElement = 0;
+#ifdef USE_STRUCTURED_BUFFERS
+            uavDesc.Format = DXGI_FORMAT_UNKNOWN;
             uavDesc.Buffer.NumElements = elementCount / m_componentSize;
             uavDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
             uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+#else
+            uavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+            uavDesc.Buffer.NumElements = elementCount;
+            uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+#endif
             CD3DX12_CPU_DESCRIPTOR_HANDLE uavHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
             uavHandle.Offset(3, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1. Third one is for buffer2.
             m_d3d12Device->CreateUnorderedAccessView(m_bufferResult.Get(), nullptr, &uavDesc, uavHandle);
