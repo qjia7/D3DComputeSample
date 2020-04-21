@@ -22,12 +22,12 @@
 #define SAFE_RELEASE(p)      { if (p) { (p)->Release(); (p)=nullptr; } }
 #endif
 
-#define USE_STRUCTURED_BUFFERS
+// #define USE_STRUCTURED_BUFFERS
 
 // #define USE_SLM_8X8_4X16
 
 // Print the result to verify.
-//#define PRINT_DATA
+// #define PRINT_DATA
 
 // If defined, then the hardware/driver must report support for double-precision CS 5.0 shaders or the sample fails to run
 //#define TEST_DOUBLE
@@ -139,11 +139,6 @@ int __cdecl main()
         g_vBuf1[i] = ((float) rand() / float(RAND_MAX));
     }
 
-#ifdef USE_STRUCTURED_BUFFERS
-    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, &g_vBuf0[0], &g_pBuf0 );
-    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, &g_vBuf1[0], &g_pBuf1 );
-    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, nullptr, &g_pBufResult );
-
     // Create the constant buffer
     D3D11_BUFFER_DESC bd = {};
     bd.Usage = D3D11_USAGE_DEFAULT;
@@ -158,6 +153,11 @@ int __cdecl main()
     D3D11_SUBRESOURCE_DATA data;
     data.pSysMem = &cb;
     g_pDevice->CreateBuffer( &bd, &data, &g_pConstantBuffer );
+
+#ifdef USE_STRUCTURED_BUFFERS
+    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, &g_vBuf0[0], &g_pBuf0 );
+    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, &g_vBuf1[0], &g_pBuf1 );
+    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, nullptr, &g_pBufResult );
 
 #else
     CreateRawBuffer( g_pDevice, NUM_ELEMENTS * sizeof(float), &g_vBuf0[0], &g_pBuf0 );
