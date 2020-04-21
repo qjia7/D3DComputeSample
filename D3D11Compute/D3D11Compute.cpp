@@ -24,7 +24,7 @@
 
 #define USE_STRUCTURED_BUFFERS
 
-#define USE_SLM_8X8_4X16
+// #define USE_SLM_8X8_4X16
 
 // Print the result to verify.
 //#define PRINT_DATA
@@ -38,6 +38,9 @@ const UINT OutputM = 1024, OutputN = OutputM, OutputK = OutputM;
 #ifdef USE_SLM_8X8_4X16
 const UINT TSM = 32, TSN = 128, TSK = 64;
 const UINT ComponentSize = 4;
+#else
+const UINT TSM = 64, TSN = 64, TSK = 64;
+const UINT ComponentSize = 1;
 #endif // USE_SLM_8X8_4X16
 
 const UINT NUM_ELEMENTS = OutputM * OutputN;
@@ -119,8 +122,15 @@ int __cdecl main()
         return 1;
 
     // printf( "Creating Compute Shader..." );
+#ifdef USE_SLM_8X8_4X16
     if ( FAILED( CreateComputeShader( L"SLM_8X8_4X16.hlsl", "CSMain", g_pDevice, &g_pCS ) ) )
         return 1;
+#else
+    if ( FAILED( CreateComputeShader( L"SLM_4x4_16x16.hlsl", "main", g_pDevice, &g_pCS ) ) )
+        return 1;
+#endif // USE_SLM_8X8_4X16
+
+
 
     // printf( "Creating buffers and filling them with initial data..." );
     for ( int i = 0; i < NUM_ELEMENTS; ++i ) 
@@ -426,7 +436,14 @@ HRESULT CreateComputeShader( LPCWSTR pSrcFile, LPCSTR pFunctionName,
 
     ID3DBlob* pErrorBlob = nullptr;
     ID3DBlob* pBlob = nullptr;
-    hr = D3DCompileFromFile( str, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, pFunctionName, pProfile, 
+    const D3D_SHADER_MACRO defines[] =
+    {
+#ifdef USE_STRUCTURED_BUFFERS
+        "USE_STRUCTURED_BUFFERS", "1",
+#endif
+        nullptr, nullptr
+    };
+    hr = D3DCompileFromFile( str, defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, pFunctionName, pProfile,
                              dwShaderFlags, 0, &pBlob, &pErrorBlob );
     if ( FAILED(hr) )
     {
