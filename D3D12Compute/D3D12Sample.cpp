@@ -452,6 +452,11 @@ void D3D12Sample::RunCompute()
 {
     double flops = 2 * m_M * m_N * m_K;
     double total = 0.0;
+    D3D12_RESOURCE_BARRIER uavBarrier = {};
+    uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+    uavBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    uavBarrier.UAV.pResource = m_bufferResult.Get();
+
     for (int it = 0; it < m_computeCount; it++)
     {
         // This will restart the command list and start a new record.
@@ -477,6 +482,7 @@ void D3D12Sample::RunCompute()
         const UINT timestampHeapIndex = 2 * it;
         m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
+        m_commandList->ResourceBarrier(1, &uavBarrier);
         m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
         m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
 
