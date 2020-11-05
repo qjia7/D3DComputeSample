@@ -93,7 +93,7 @@ private:
 	UINT m_dataSize;
 	UINT m_workGroupSizeX;
 	UINT m_componentSize;
-	UINT m_computeCount = 50;
+	UINT m_computeCount = 2000;
 	std::vector<float> buf1Data;
 	std::vector<float> buf2Data;
 
