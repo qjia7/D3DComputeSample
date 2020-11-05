@@ -79,6 +79,9 @@ private:
     ComPtr<ID3D12Resource> m_buffer1;
     ComPtr<ID3D12Resource> m_buffer2;
     ComPtr<ID3D12Resource> m_bufferResult;
+    ComPtr<ID3D12Resource> mTexture1;
+    ComPtr<ID3D12Resource> mTexture2;
+    ComPtr<ID3D12Resource> mTextureResult;
     ComPtr<ID3D12Resource> m_queryResult;
 
     SceneConstantBuffer m_constantBufferData;
@@ -106,6 +109,7 @@ private:
     void LoadPipeline();
     void LoadAssets();
     void LoadSizeDependentResources();
+    void LoadTextureResources();
     void WaitForGpu();
     void RunCompute();
 };

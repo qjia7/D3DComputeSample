@@ -14,8 +14,9 @@
 #include "D3D12Sample.h"
 #include <chrono>
 
-// #define USE_STRUCTURED_BUFFERS
-// #define USE_SLM_8X8_4X16
+#define USE_STRUCTURED_BUFFERS
+#define USE_SLM_8X8_4X16
+//#define USE_TEXTURE
 #define PRINT_DATA
 
 namespace
@@ -259,8 +260,11 @@ void D3D12Sample::LoadAssets()
         CD3DX12_CPU_DESCRIPTOR_HANDLE cbHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
         m_d3d12Device->CreateConstantBufferView(&cbvDesc, cbHandle);
     }
-
+#ifdef USE_TEXTURE
+    LoadTextureResources();
+#else
     LoadSizeDependentResources();
+#endif // USE_TEXTURE
 
     // Close the command list and execute it to begin the buffer copy into
     // the default heap.
@@ -288,6 +292,142 @@ void D3D12Sample::LoadAssets()
 
 }
 
+void D3D12Sample::LoadTextureResources()
+{
+    {
+        // Create the texture1.
+        const UINT elementCount = m_M * m_K;
+        for (int i = 0; i < elementCount; ++i)
+        {
+            buf1Data.push_back((float)rand() / float(RAND_MAX));
+        }
+        const UINT bufferSize = buf1Data.size() * sizeof(float);
+
+        ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&m_intermediatebuffer1)));
+
+        ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, m_K / m_componentSize, m_M),
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+            nullptr,
+            IID_PPV_ARGS(&mTexture1)));
+
+        ResourceBarrier(m_commandList.Get(), mTexture1.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+        D3D12_SUBRESOURCE_DATA bufferData = {};
+        bufferData.pData = buf1Data.data();
+        bufferData.RowPitch = m_K * sizeof(float);
+        bufferData.SlicePitch = bufferData.RowPitch * m_M;
+        UpdateSubresources(m_commandList.Get(), mTexture1.Get(), m_intermediatebuffer1.Get(), 0, 0, 1, &bufferData);
+        ResourceBarrier(m_commandList.Get(), mTexture1.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+        // Create SRV for the texture1
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        srvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
+        srvHandle.Offset(1, m_cbSrvDescriptorSize); // First one is for constant buffer.
+        m_d3d12Device->CreateShaderResourceView(mTexture1.Get(), &srvDesc, srvHandle);
+    }
+
+	{
+		// create the texture2
+		const UINT elementCount = m_K * m_N;
+		for (int i = 0; i < elementCount; ++i)
+		{
+			buf2Data.push_back((float)rand() / float(RAND_MAX));
+		}
+		const UINT bufferSize = buf2Data.size() * sizeof(float);
+
+		ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&m_intermediatebuffer2)));
+
+		ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, m_N / m_componentSize, m_K),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			nullptr,
+			IID_PPV_ARGS(&mTexture2)));
+
+		ResourceBarrier(m_commandList.Get(), mTexture2.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+		D3D12_SUBRESOURCE_DATA bufferData = {};
+		bufferData.pData = buf2Data.data();
+		bufferData.RowPitch = m_N * sizeof(float);
+		bufferData.SlicePitch = bufferData.RowPitch * m_K;
+		UpdateSubresources(m_commandList.Get(), mTexture2.Get(), m_intermediatebuffer2.Get(), 0, 0, 1, &bufferData);
+		ResourceBarrier(m_commandList.Get(), mTexture2.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+		// Create SRV for texure2
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
+		srvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
+		srvHandle.Offset(2, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1
+		m_d3d12Device->CreateShaderResourceView(mTexture2.Get(), &srvDesc, srvHandle);
+	}
+	// Create textureResult and UAV for it.
+	{
+		const UINT elementCount = m_M * m_N;
+		const UINT bufferSize = elementCount * sizeof(float);
+
+		ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, m_N / m_componentSize, m_M, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			nullptr,
+			IID_PPV_ARGS(&mTextureResult))
+		);
+
+		// Create UAV for textureResult
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		uavDesc.Texture2D.MipSlice = 0;
+		uavDesc.Texture2D.PlaneSlice = 0;
+		uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE uavHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
+		uavHandle.Offset(3, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1. Third one is for buffer2.
+		m_d3d12Device->CreateUnorderedAccessView(mTextureResult.Get(), nullptr, &uavDesc, uavHandle);
+	}
+
+	// Create the query result buffer.
+	{
+		// Two timestamps for each frame.
+		const UINT resultCount = 2 * m_computeCount;
+		const UINT resultBufferSize = resultCount * sizeof(UINT64);
+		D3D12_QUERY_HEAP_DESC timestampHeapDesc = {};
+		timestampHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+		timestampHeapDesc.Count = resultCount;
+
+		ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(resultBufferSize),
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS(&m_queryResult)
+		));
+		ThrowIfFailed(m_d3d12Device->CreateQueryHeap(&timestampHeapDesc, IID_PPV_ARGS(&m_queryHeap)));
+	}
+}
 
 void D3D12Sample::LoadSizeDependentResources()
 {
@@ -546,8 +686,21 @@ void D3D12Sample::RunCompute()
         nullptr,
         IID_PPV_ARGS(&readbackBuffer)));
     readbackBuffer->SetName(L"Readback buffer Map");
-    ResourceBarrier(m_commandList.Get(), m_bufferResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    m_commandList->CopyResource(readbackBuffer.Get(), m_bufferResult.Get());
+#ifdef USE_TEXTURE
+	ResourceBarrier(m_commandList.Get(), mTextureResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	D3D12_TEXTURE_COPY_LOCATION copyDest;
+	copyDest.pResource = readbackBuffer.Get();
+	copyDest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+	D3D12_TEXTURE_COPY_LOCATION copySrc;
+	copySrc.pResource = mTextureResult.Get();
+	copySrc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	copySrc.SubresourceIndex = 0;
+	CD3DX12_BOX box(0, 0, m_N / 4, m_M);
+	m_commandList->CopyTextureRegion(&copyDest,0, 0, 0, &copySrc, &box);
+#else
+	ResourceBarrier(m_commandList.Get(), m_bufferResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	m_commandList->CopyResource(readbackBuffer.Get(), m_bufferResult.Get());
+#endif // USE_TEXTURE
 
     m_commandList->Close();
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
