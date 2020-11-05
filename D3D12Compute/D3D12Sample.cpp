@@ -200,7 +200,14 @@ void D3D12Sample::LoadAssets()
     ComPtr<ID3DBlob> computeShader;
     UINT compileFlags = 0;
 #ifdef USE_SLM_8X8_4X16
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    const D3D_SHADER_MACRO defines[] =
+    {
+#ifdef USE_TEXTURE
+        "USE_TEXTURE", "1",
+#endif
+        nullptr, nullptr
+    };
+    ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 #else
     const D3D_SHADER_MACRO defines[] =
     {
