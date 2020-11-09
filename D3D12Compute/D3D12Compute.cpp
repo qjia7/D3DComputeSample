@@ -5,10 +5,10 @@
 #include "stdafx.h"
 #include "D3D12Sample.h"
 
-int main()
+int main(int argc, char *argv[])
 {
     D3D12Sample sample;
-	sample.Start();
+	sample.Start(argc, argv);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

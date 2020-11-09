@@ -49,7 +49,7 @@ public:
         throw HrException(hr);
     }
 }
-    void Start();
+    void Start(int argc, char *argv[]);
 
 private:
     struct SceneConstantBuffer
@@ -93,6 +93,15 @@ private:
     UINT64 m_computeFenceValue;
     UINT64 m_timestampFrequency;
 
+    enum STORAGETYPE : short
+    {
+        STRUCTURED_BUFFER,
+        BYTEADDRESS_BUFFER,
+        TEXTURE,
+        UNSUPPORTED
+    };
+    STORAGETYPE mStorageType;
+
 	UINT m_M;
 	UINT m_N;
 	UINT m_K;
@@ -108,7 +117,7 @@ private:
     void CreateDevice(const ComPtr<IDXGIFactory4>& factory);
     void LoadPipeline();
     void LoadAssets();
-    void LoadSizeDependentResources();
+    void LoadBufferResources();
     void LoadTextureResources();
     void WaitForGpu();
     void RunCompute();

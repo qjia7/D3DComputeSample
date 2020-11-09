@@ -13,10 +13,10 @@
 #include "stdafx.h"
 #include "D3D12Sample.h"
 #include <chrono>
+#include <iostream>
 
-//#define USE_STRUCTURED_BUFFERS
 #define USE_SLM_8X8_4X16
-#define USE_TEXTURE
+
 #define PRINT_DATA
 
 namespace
@@ -43,6 +43,7 @@ D3D12Sample::D3D12Sample() :
     m_pCbSrvDataBegin(nullptr),
     m_cbSrvDescriptorSize(0),
     m_constantBufferData{},
+    mStorageType(STORAGETYPE::BYTEADDRESS_BUFFER),
     m_M(1024),
     m_N(1024),
     m_K(1024),
@@ -58,8 +59,94 @@ D3D12Sample::D3D12Sample() :
 #endif  // USE_SLM_8X8_4X16
 }
 
-void D3D12Sample::Start()
+void D3D12Sample::Start(int argc, char *argv[])
 {
+    for (int i = 0; i < argc; ++i)
+    {
+        std::string cmd(argv[i]);
+        if (cmd == "-h" || cmd == "--help")
+        {
+            std::cout << "-h, --help     List all the supported command flags." << std::endl;
+            std::cout << "--storage-type texture|structured_buffer|byteAddress_buffer     Choose using which storage type to load/store data. The default one is byteAddress_buffer." << std::endl;
+            std::cout << "--num-dispatch int_value     Determines how many command lists will be executed. The default value is 500" << std::endl;
+            std::cout << "--M int_value     The rows of the output matrix [M,N]. The default value is 1024" << std::endl;
+            std::cout << "--N int_value     The colums of the output matrix [M,N]. The default value is 1024" << std::endl;
+            std::cout << "--K int_value     The inner dimension length of matrix multiplication. The default value is 1024" << std::endl;
+            return;
+        }
+        else if (cmd == "--storage-type")
+        {
+            std::string storageType = argv[i++ + 1];
+            if (storageType == "texture")
+            {
+                mStorageType = STORAGETYPE::TEXTURE;
+            }
+            else if (storageType == "structured_buffer")
+            {
+                mStorageType = STORAGETYPE::STRUCTURED_BUFFER;
+            }
+            else
+            {
+                mStorageType = STORAGETYPE::BYTEADDRESS_BUFFER;
+            }
+        }
+        else if (cmd == "--num-dispatch")
+        {
+            char *pNext;
+            m_computeCount = strtol(argv[i++ + 1], &pNext, 10);
+            if (m_computeCount <= 0)
+            {
+                std::cerr << "Dispatch count should be larger than 0." << std::endl;
+                return;
+            }
+        }
+        else if (cmd == "--M")
+        {
+            char *pNext;
+            m_M = strtol(argv[i++ + 1], &pNext, 10);
+            if (m_M <= 0)
+            {
+                std::cerr << "The output matrix height M should be larger than 0." << std::endl;
+                return;
+            }
+            if (m_M % 256 != 0)
+            {
+                std::cerr << "The output matrix height M should be 256 aligned." << std::endl;
+                return;
+            }
+        }
+        else if (cmd == "--N")
+        {
+            char *pNext;
+            m_N = strtol(argv[i++ + 1], &pNext, 10);
+            if (m_N <= 0)
+            {
+                std::cerr << "The output matrix width N should be larger than 0." << std::endl;
+                return;
+            }
+            if (m_N % 256 != 0)
+            {
+                std::cerr << "The output matrix width N should be 256 aligned." << std::endl;
+                return;
+            }
+        }
+        else if (cmd == "--K")
+        {
+            char *pNext;
+            m_K = strtol(argv[i++ + 1], &pNext, 10);
+            if (m_K <= 0)
+            {
+                std::cerr << "The inner dimension length K should be larger than 0." << std::endl;
+                return;
+            }
+            if (m_K % 256 != 0)
+            {
+                std::cerr << "The inner dimension length K should be 256 aligned." << std::endl;
+                return;
+            }
+        }
+    }
+
     LoadPipeline();
     LoadAssets();
     RunCompute();
@@ -199,21 +286,25 @@ void D3D12Sample::LoadAssets()
     descComputePSO.pRootSignature = m_computeRootSignature.Get();
     ComPtr<ID3DBlob> computeShader;
     UINT compileFlags = 0;
-    const D3D_SHADER_MACRO defines[] =
+
+    std::vector<D3D_SHADER_MACRO> defines;
+    static const D3D_SHADER_MACRO useTexture = { "USE_TEXTURE", "1" };
+    static const D3D_SHADER_MACRO useStructuredBuffer = { "USE_STRUCTURED_BUFFERS", "1" };
+    static const D3D_SHADER_MACRO terminator = {};
+    if (mStorageType == STORAGETYPE::TEXTURE)
     {
-#ifdef USE_TEXTURE
-        "USE_TEXTURE", "1",
-#else
-#ifdef USE_STRUCTURED_BUFFERS
-        "USE_STRUCTURED_BUFFERS", "1",
-#endif
-#endif
-        nullptr, nullptr
-    };
+        defines.push_back(useTexture);
+    }
+    else if (mStorageType == STORAGETYPE::STRUCTURED_BUFFER)
+    {
+        defines.push_back(useStructuredBuffer);
+    }
+    defines.push_back(terminator);
+
 #ifdef USE_SLM_8X8_4X16
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines.data(), nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 #else
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines, nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 #endif
     descComputePSO.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
     ThrowIfFailed(m_d3d12Device->CreateComputePipelineState(&descComputePSO, IID_PPV_ARGS(&m_computePSO)));
@@ -264,11 +355,15 @@ void D3D12Sample::LoadAssets()
         CD3DX12_CPU_DESCRIPTOR_HANDLE cbHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
         m_d3d12Device->CreateConstantBufferView(&cbvDesc, cbHandle);
     }
-#ifdef USE_TEXTURE
-    LoadTextureResources();
-#else
-    LoadSizeDependentResources();
-#endif // USE_TEXTURE
+
+    if (mStorageType == STORAGETYPE::TEXTURE)
+    {
+        LoadTextureResources();
+    }
+    else
+    {
+        LoadBufferResources();
+    }
 
     // Close the command list and execute it to begin the buffer copy into
     // the default heap.
@@ -433,7 +528,7 @@ void D3D12Sample::LoadTextureResources()
 	}
 }
 
-void D3D12Sample::LoadSizeDependentResources()
+void D3D12Sample::LoadBufferResources()
 {
     {
         // Create the buffer1.
@@ -472,27 +567,30 @@ void D3D12Sample::LoadSizeDependentResources()
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
-#ifdef USE_STRUCTURED_BUFFERS
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.Buffer.NumElements = elementCount / m_componentSize;
-        srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-#else
-        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-        srvDesc.Buffer.NumElements = elementCount;
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-#endif // USE_STRUCTURED_BUFFERS
+        if (mStorageType == STORAGETYPE::STRUCTURED_BUFFER)
+        {
+            srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+            srvDesc.Buffer.NumElements = elementCount / m_componentSize;
+            srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
+            srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+        }
+        else
+        {
+            srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+            srvDesc.Buffer.NumElements = elementCount;
+            srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+        }
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
         srvHandle.Offset(1, m_cbSrvDescriptorSize); // First one is for constant buffer.
         m_d3d12Device->CreateShaderResourceView(m_buffer1.Get(), &srvDesc, srvHandle);
     }
 
-	{
+    {
         // create the buffer2
         const UINT elementCount = m_K * m_N;
-        for ( int i = 0; i < elementCount; ++i )
+        for (int i = 0; i < elementCount; ++i)
         {
-            buf2Data.push_back((float) rand() / float(RAND_MAX));
+            buf2Data.push_back((float)rand() / float(RAND_MAX));
         }
         const UINT bufferSize = buf2Data.size() * sizeof(float);
 
@@ -524,48 +622,53 @@ void D3D12Sample::LoadSizeDependentResources()
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
-#ifdef USE_STRUCTURED_BUFFERS
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.Buffer.NumElements = elementCount / m_componentSize;
-        srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-#else
-        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-        srvDesc.Buffer.NumElements = elementCount;
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-#endif
+        if (mStorageType == STORAGETYPE::STRUCTURED_BUFFER)
+        {
+            srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+            srvDesc.Buffer.NumElements = elementCount / m_componentSize;
+            srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
+            srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+        }
+        else
+        {
+            srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+            srvDesc.Buffer.NumElements = elementCount;
+            srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+        }
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
         srvHandle.Offset(2, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1
         m_d3d12Device->CreateShaderResourceView(m_buffer2.Get(), &srvDesc, srvHandle);
 	}
         // Create bufferResult and UAV for it.
-        {
+    {
         const UINT elementCount = m_M * m_N;
         const UINT bufferSize = elementCount * sizeof(float);
 
-            ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-                D3D12_HEAP_FLAG_NONE,
-                &CD3DX12_RESOURCE_DESC::Buffer(bufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                nullptr,
-                IID_PPV_ARGS(&m_bufferResult))
-            );
+        ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(bufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            nullptr,
+            IID_PPV_ARGS(&m_bufferResult))
+        );
 
-            // Create UAV for bufferResult
-            D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-            uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-            uavDesc.Buffer.FirstElement = 0;
-#ifdef USE_STRUCTURED_BUFFERS
+        // Create UAV for bufferResult
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        uavDesc.Buffer.FirstElement = 0;
+        if (mStorageType == STORAGETYPE::STRUCTURED_BUFFER)
+        {
             uavDesc.Format = DXGI_FORMAT_UNKNOWN;
             uavDesc.Buffer.NumElements = elementCount / m_componentSize;
             uavDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
             uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-#else
+        }
+        else {
             uavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
             uavDesc.Buffer.NumElements = elementCount;
             uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-#endif
+        }
             CD3DX12_CPU_DESCRIPTOR_HANDLE uavHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
             uavHandle.Offset(3, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1. Third one is for buffer2.
             m_d3d12Device->CreateUnorderedAccessView(m_bufferResult.Get(), nullptr, &uavDesc, uavHandle);
@@ -687,26 +790,29 @@ void D3D12Sample::RunCompute()
         nullptr,
         IID_PPV_ARGS(&readbackBuffer)));
     readbackBuffer->SetName(L"Readback buffer Map");
-#ifdef USE_TEXTURE
-	ResourceBarrier(m_commandList.Get(), mTextureResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	D3D12_TEXTURE_COPY_LOCATION copyDest;
-	copyDest.pResource = readbackBuffer.Get();
-	copyDest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    UINT64 transferToToalBytes;
-    const UINT64 baseOffset = 0;
-    D3D12_RESOURCE_DESC desc = mTextureResult.Get()->GetDesc();
-    m_d3d12Device->GetCopyableFootprints(&desc, 0, 1, baseOffset, &copyDest.PlacedFootprint, nullptr, nullptr, &transferToToalBytes);
+    if (mStorageType == STORAGETYPE::TEXTURE)
+    {
+        ResourceBarrier(m_commandList.Get(), mTextureResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        D3D12_TEXTURE_COPY_LOCATION copyDest;
+        copyDest.pResource = readbackBuffer.Get();
+        copyDest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        UINT64 transferToToalBytes;
+        const UINT64 baseOffset = 0;
+        D3D12_RESOURCE_DESC desc = mTextureResult.Get()->GetDesc();
+        m_d3d12Device->GetCopyableFootprints(&desc, 0, 1, baseOffset, &copyDest.PlacedFootprint, nullptr, nullptr, &transferToToalBytes);
 
-	D3D12_TEXTURE_COPY_LOCATION copySrc;
-	copySrc.pResource = mTextureResult.Get();
-	copySrc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-	copySrc.SubresourceIndex = 0;
-	CD3DX12_BOX box(0, 0, m_N / m_componentSize, m_M);
-	m_commandList->CopyTextureRegion(&copyDest,0, 0, 0, &copySrc, &box);
-#else
-	ResourceBarrier(m_commandList.Get(), m_bufferResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	m_commandList->CopyResource(readbackBuffer.Get(), m_bufferResult.Get());
-#endif // USE_TEXTURE
+        D3D12_TEXTURE_COPY_LOCATION copySrc;
+        copySrc.pResource = mTextureResult.Get();
+        copySrc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        copySrc.SubresourceIndex = 0;
+        CD3DX12_BOX box(0, 0, m_N / m_componentSize, m_M);
+        m_commandList->CopyTextureRegion(&copyDest, 0, 0, 0, &copySrc, &box);
+    }
+    else
+    {
+        ResourceBarrier(m_commandList.Get(), m_bufferResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        m_commandList->CopyResource(readbackBuffer.Get(), m_bufferResult.Get());
+    }
 
     m_commandList->Close();
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
