@@ -16,7 +16,7 @@
 
 #define USE_STRUCTURED_BUFFERS
 #define USE_SLM_8X8_4X16
-//#define USE_TEXTURE
+#define USE_TEXTURE
 #define PRINT_DATA
 
 namespace
@@ -681,6 +681,7 @@ void D3D12Sample::RunCompute()
 
     m_computeAllocator->Reset();
     m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get());
+
 #ifdef PRINT_DATA
     // Read data back to verify the result
     UINT64 outputBufferSize = m_M * m_N * sizeof(float);
@@ -698,6 +699,11 @@ void D3D12Sample::RunCompute()
 	D3D12_TEXTURE_COPY_LOCATION copyDest;
 	copyDest.pResource = readbackBuffer.Get();
 	copyDest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    UINT64 transferToToalBytes;
+    const UINT64 baseOffset = 0;
+    D3D12_RESOURCE_DESC desc = mTextureResult.Get()->GetDesc();
+    m_d3d12Device->GetCopyableFootprints(&desc, 0, 1, baseOffset, &copyDest.PlacedFootprint, nullptr, nullptr, &transferToToalBytes);
+
 	D3D12_TEXTURE_COPY_LOCATION copySrc;
 	copySrc.pResource = mTextureResult.Get();
 	copySrc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
@@ -725,7 +731,6 @@ void D3D12Sample::RunCompute()
         reinterpret_cast<void**>(&pReadbackBufferData)));
 
     result = pReadbackBufferData[m*m_N + n];
-
     readbackBuffer->Unmap(0, &emptyRange);
 
     float acc = 0.0;
