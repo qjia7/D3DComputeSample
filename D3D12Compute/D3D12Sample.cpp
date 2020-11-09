@@ -603,7 +603,9 @@ void D3D12Sample::RunCompute()
         ThrowIfFailed(m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get()));
 
         // Record commands.
-
+        // Get a timestamp at the beginning and end of the command list.
+        const UINT timestampHeapIndex = 2 * it;
+        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         ID3D12DescriptorHeap* pHeaps[] = { m_cbSrvHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(pHeaps), pHeaps);
 
@@ -617,9 +619,6 @@ void D3D12Sample::RunCompute()
 
         m_commandList->SetPipelineState(m_computePSO.Get());
 
-        // Get a timestamp at the before and after dispatch command.
-        const UINT timestampHeapIndex = 2 * it;
-        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
         m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
         m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
