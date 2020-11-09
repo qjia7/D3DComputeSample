@@ -44,6 +44,7 @@ void mm_write(int row, int col, float4 value) {
     dst[uint2(col, row)] = value;
 }
 #else
+#ifdef USE_STRUCTURED_BUFFERS
 StructuredBuffer<float4> src0 : register(t0);
 StructuredBuffer<float4> src1 : register(t1);
 RWStructuredBuffer<float4> dst : register(u0);
@@ -59,7 +60,26 @@ float4 mm_readB(int row, int col) {
 void mm_write(int row, int col, float4 value) {
     dst[row * (N / 4) + col] = value;
 }
-#endif
+#else
+ByteAddressBuffer src0 : register(t0);
+ByteAddressBuffer src1 : register(t1);
+RWByteAddressBuffer dst : register(u0);
+
+float4 mm_readA(int row, int col) {
+    float4 result = asfloat(src0.Load4(16 * (row * (K / 4) + col)));
+    return result;
+}
+
+float4 mm_readB(int row, int col) {
+    float4 result = asfloat(src1.Load4(16 * (row * (N / 4) + col)));
+    return result;
+}
+
+void mm_write(int row, int col, float4 value) {
+    dst.Store4(16 * (row * (N / 4) + col), asuint(value));
+}
+#endif  // USE_STRUCTURED_BUFFERS
+#endif  // USE_TEXTURE
 
 groupshared float4 atile[512];
 [numthreads(16, 4, 1)]

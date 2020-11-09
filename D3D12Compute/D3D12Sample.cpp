@@ -14,7 +14,7 @@
 #include "D3D12Sample.h"
 #include <chrono>
 
-#define USE_STRUCTURED_BUFFERS
+//#define USE_STRUCTURED_BUFFERS
 #define USE_SLM_8X8_4X16
 #define USE_TEXTURE
 #define PRINT_DATA
@@ -199,23 +199,20 @@ void D3D12Sample::LoadAssets()
     descComputePSO.pRootSignature = m_computeRootSignature.Get();
     ComPtr<ID3DBlob> computeShader;
     UINT compileFlags = 0;
-#ifdef USE_SLM_8X8_4X16
     const D3D_SHADER_MACRO defines[] =
     {
 #ifdef USE_TEXTURE
         "USE_TEXTURE", "1",
-#endif
-        nullptr, nullptr
-    };
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 #else
-    const D3D_SHADER_MACRO defines[] =
-    {
 #ifdef USE_STRUCTURED_BUFFERS
         "USE_STRUCTURED_BUFFERS", "1",
 #endif
+#endif
         nullptr, nullptr
     };
+#ifdef USE_SLM_8X8_4X16
+    ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+#else
     ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines, nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 #endif
     descComputePSO.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
