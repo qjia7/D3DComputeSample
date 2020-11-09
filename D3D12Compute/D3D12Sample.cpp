@@ -52,9 +52,9 @@ D3D12Sample::D3D12Sample() :
 	m_componentSize(4)
 {
 #ifdef USE_SLM_8X8_4X16
-	m_tileM = 32; m_tileN = 128; m_tileK = 64;
+    m_tileM = 32; m_tileN = 128; m_tileK = 64; m_componentSize = 4;
 #else
-	m_tileM = 64; m_tileN = 64; m_tileK = 64;
+    m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
 #endif  // USE_SLM_8X8_4X16
 }
 
@@ -705,7 +705,7 @@ void D3D12Sample::RunCompute()
 	copySrc.pResource = mTextureResult.Get();
 	copySrc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 	copySrc.SubresourceIndex = 0;
-	CD3DX12_BOX box(0, 0, m_N / 4, m_M);
+	CD3DX12_BOX box(0, 0, m_N / m_componentSize, m_M);
 	m_commandList->CopyTextureRegion(&copyDest,0, 0, 0, &copySrc, &box);
 #else
 	ResourceBarrier(m_commandList.Get(), m_bufferResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
