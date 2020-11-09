@@ -137,12 +137,12 @@ void D3D12Sample::LoadPipeline()
     CreateDevice(factory);   
     
     // Describe and create the command queue.
-    D3D12_COMMAND_QUEUE_DESC queueDesc = { D3D12_COMMAND_LIST_TYPE_COMPUTE, 0, D3D12_COMMAND_QUEUE_FLAG_NONE };
+    D3D12_COMMAND_QUEUE_DESC queueDesc = { D3D12_COMMAND_LIST_TYPE_DIRECT, 0, D3D12_COMMAND_QUEUE_FLAG_NONE };
 
     ThrowIfFailed(m_d3d12Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
     ThrowIfFailed(m_commandQueue->GetTimestampFrequency(&m_timestampFrequency));
     ThrowIfFailed(
-        m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COMPUTE, IID_PPV_ARGS(&m_computeAllocator)));
+        m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_computeAllocator)));
 
 
     // Create descriptor heaps.
@@ -223,7 +223,7 @@ void D3D12Sample::LoadAssets()
     ThrowIfFailed(
         m_d3d12Device->CreateCommandList(
             0,
-            D3D12_COMMAND_LIST_TYPE_COMPUTE,
+            D3D12_COMMAND_LIST_TYPE_DIRECT,
             m_computeAllocator.Get(),
             m_computePSO.Get(),
             IID_PPV_ARGS(&m_commandList)));
@@ -633,7 +633,7 @@ void D3D12Sample::RunCompute()
         auto diff = end - start;
         if (it > 0)
         {
-            total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
+            total += std::chrono::duration_cast<std::chrono::microseconds>(diff).count();
         }
     }
     double avg_time = total / (m_computeCount - 1);
@@ -657,23 +657,20 @@ void D3D12Sample::RunCompute()
         // Unmap with an empty range (written range).
         m_queryResult->Unmap(0, &emptyRange);
 
-        // Calculate the GPU execution time in milliseconds.
-        const UINT64 gpuTimeMS =  (timeStampDelta * 1000) / m_timestampFrequency;
+        // Calculate the GPU execution time in microseconds.
+        const UINT64 gpuTimeUS =  (timeStampDelta * 1000000) / m_timestampFrequency;
         // Don't consider the first dispatch time.
         if (i > 0)
         {
-            if (gpuTimeMS < minTime)
-                minTime = gpuTimeMS;
-            total_kernel += gpuTimeMS;
+            if (gpuTimeUS < minTime)
+                minTime = gpuTimeUS;
+            total_kernel += gpuTimeUS;
         }
     }
     double avg_kernel = 0;
     avg_kernel = total_kernel / (m_computeCount - 1);
-    printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n"
-		    "Avg_time = %f ms, Avg_kernel_time = %f ms, min_time = %f ms\n",
-           flops / avg_time / 10000 / 100,
-           flops / avg_kernel / 10000 / 100,
-           flops / minTime / 10000 / 100, avg_time, avg_kernel, minTime);
+    printf("Avg_time = %f us, Avg_kernel_time = %f us, min_time = %f us\n",
+           avg_time, avg_kernel, minTime);
 
     m_computeAllocator->Reset();
     m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get());
