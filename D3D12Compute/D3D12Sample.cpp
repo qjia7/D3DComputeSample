@@ -339,8 +339,8 @@ void D3D12Sample::LoadAssets()
 
         ResourceBarrier(m_commandList.Get(), m_constantBuffer.Get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_COPY_DEST);
         m_constantBufferData.M = m_M;
-        m_constantBufferData.N = m_K;
-        m_constantBufferData.K = m_N;
+        m_constantBufferData.N = m_N;
+        m_constantBufferData.K = m_K;
         m_constantBufferData.TILE_K = m_tileK;
 		D3D12_SUBRESOURCE_DATA bufferData = {};
         bufferData.pData = &m_constantBufferData;
