@@ -16,7 +16,7 @@
 #include <iostream>
 
 #define USE_SLM_8X8_4X16
-
+#define USE_SLM_4x4_16x16_v4
 #define PRINT_DATA
 
 namespace
@@ -55,7 +55,11 @@ D3D12Sample::D3D12Sample() :
 #ifdef USE_SLM_8X8_4X16
     m_tileM = 32; m_tileN = 128; m_tileK = 64; m_componentSize = 4;
 #else
+#ifdef USE_SLM_4x4_16x16_v4
+    m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 4;
+#else
     m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
+#endif  // USE_SLM_4x4_16x16_v4
 #endif  // USE_SLM_8X8_4X16
 }
 
@@ -304,7 +308,11 @@ void D3D12Sample::LoadAssets()
 #ifdef USE_SLM_8X8_4X16
     ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines.data(), nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 #else
+#ifdef USE_SLM_4x4_16x16_v4
+    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_vec4.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+#else
     ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+#endif // USE_SLM_4x4_16x16_v4
 #endif
     descComputePSO.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
     ThrowIfFailed(m_d3d12Device->CreateComputePipelineState(&descComputePSO, IID_PPV_ARGS(&m_computePSO)));
