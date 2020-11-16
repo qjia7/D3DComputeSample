@@ -15,8 +15,9 @@
 #include <chrono>
 #include <iostream>
 
-#define USE_SLM_8X8_4X16
-#define USE_SLM_4x4_16x16_v4
+//#define USE_SLM_8X8_4X16
+//#define USE_SLM_4x4_16x16_v4
+#define USE_SLM_4x4_16x16_4_FLOATS
 #define PRINT_DATA
 
 namespace
@@ -311,7 +312,11 @@ void D3D12Sample::LoadAssets()
 #ifdef USE_SLM_4x4_16x16_v4
     ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_vec4.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 #else
+#ifdef USE_SLM_4x4_16x16_4_FLOATS
+    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_4_floats.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+#else
     ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+#endif // USE_SLM_4x4_16x16_4_FLOATS
 #endif // USE_SLM_4x4_16x16_v4
 #endif
     descComputePSO.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
