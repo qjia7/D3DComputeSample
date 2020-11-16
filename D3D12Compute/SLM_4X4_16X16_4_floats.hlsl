@@ -45,14 +45,14 @@ RWStructuredBuffer<float> dst : register(u0);
 
 float4 mm_readA(int row, int col) {
     int index = row * K + col;
-    vec4 result = float4(src0[index],
+    float4 result = float4(src0[index],
         src0[index + 1], src0[index + 2], src0[index + 3]);
     return result;
 }
 
 float4 mm_readB(int row, int col) {
     int index = row * N + col;
-    vec4 result = float4(src1[index],
+    float4 result = float4(src1[index],
         src1[index + 1], src1[index + 2], src1[index + 3]);
     return result;
 }
@@ -102,8 +102,8 @@ static int ColPerThread = 4;
 static int TileInner = 64;
 static int VEC_SIZE = 4;
 
-groupshared float4 mm_Asub[64][16];
-groupshared float4 mm_Bsub[64][16];
+groupshared float mm_Asub[64][64];
+groupshared float mm_Bsub[64][64];
 
 [numthreads(16, 16, 1)]
 void main(CS_INPUT input)
@@ -113,23 +113,24 @@ void main(CS_INPUT input)
     int dimInner = K;
     int dimBOuter = N;
     int tileRow = int(gl_LocalInvocationID.y) * RowPerThread;
-    int tileCol = int(gl_LocalInvocationID.x);
+    int tileCol = int(gl_LocalInvocationID.x) * ColPerThread;
 
     int globalRow = int(gl_GlobalInvocationID.y) * RowPerThread;
     int globalCol = int(gl_GlobalInvocationID.x) * ColPerThread;
 
     int numTiles = (dimInner - 1) / TileInner + 1;
 
-    float4 acc[4];
-    float4 ACached;
-    float4 BCached[4];
+    float acc[4][4];
+    float ACached;
+    float BCached[4];
 
     // Without this initialization strange values show up in acc.
     for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
-        acc[innerRow] = (float4)(0.f);
+        for (int innerCol = 0; innerCol < ColPerThread; innerCol++) {
+            acc[innerRow][innerCol] = 0.0;
+        }
     }
 
-    int globalColA = tileCol * 4;
     int tileRowB = int(gl_LocalInvocationID.y) * 4;
 
     // Loop over shared dimension.
@@ -139,62 +140,53 @@ void main(CS_INPUT input)
           int inputRow = tileRow + innerRow;
           int inputCol = tileCol;
 
-          mm_Asub[inputRow][inputCol] = mm_readA(
+          float4 result = mm_readA(
               globalRow + innerRow,
-              globalColA);
+              t * TileInner + inputCol);
+          mm_Asub[inputRow][inputCol] = result.x;
+          mm_Asub[inputRow][inputCol + 1] = result.y;
+          mm_Asub[inputRow][inputCol + 2] = result.z;
+          mm_Asub[inputRow][inputCol + 3] = result.w;
       }
-      globalColA += TileInner;
 
       // Load one tile of B into local memory.
       for (int innerRow = 0; innerRow < 4; innerRow++) {
           int inputRow = tileRowB + innerRow;
           int inputCol = tileCol;
 
-          mm_Bsub[inputRow][inputCol] = mm_readB(
-            t * TileInner + inputRow,
-            globalCol);
+          float4 result = mm_readB(
+              t * TileInner + inputRow,
+              globalCol);
+          mm_Bsub[inputRow][inputCol] = result.x;
+          mm_Bsub[inputRow][inputCol + 1] = result.y;
+          mm_Bsub[inputRow][inputCol + 2] = result.z;
+          mm_Bsub[inputRow][inputCol + 3] = result.w;
       }
 
       GroupMemoryBarrierWithGroupSync();
 
       // Compute acc values for a single thread.
-      for (int k = 0; k < TileInner / VEC_SIZE; k++) {
-        BCached[0] = mm_Bsub[k * VEC_SIZE][tileCol];
-        BCached[1] = mm_Bsub[k * VEC_SIZE + 1][tileCol];
-        BCached[2] = mm_Bsub[k * VEC_SIZE + 2][tileCol];
-        BCached[3] = mm_Bsub[k * VEC_SIZE + 3][tileCol];
+      for (int k = 0; k < TileInner; k++) {
+          for (int inner = 0; inner < ColPerThread; inner++) {
+              BCached[inner] = mm_Bsub[k][tileCol + inner];
+          }
 
-        ACached = mm_Asub[tileRow][k];
-        acc[0] = BCached[0] * ACached.x + acc[0];
-        acc[0] = BCached[1] * ACached.y + acc[0];
-        acc[0] = BCached[2] * ACached.z + acc[0];
-        acc[0] = BCached[3] * ACached.w + acc[0];
-
-        ACached = mm_Asub[tileRow + 1][k];
-        acc[1] = BCached[0] * ACached.x + acc[1];
-        acc[1] = BCached[1] * ACached.y + acc[1];
-        acc[1] = BCached[2] * ACached.z + acc[1];
-        acc[1] = BCached[3] * ACached.w + acc[1];
-
-        ACached = mm_Asub[tileRow + 2][k];
-        acc[2] = BCached[0] * ACached.x + acc[2];
-        acc[2] = BCached[1] * ACached.y + acc[2];
-        acc[2] = BCached[2] * ACached.z + acc[2];
-        acc[2] = BCached[3] * ACached.w + acc[2];
-
-        ACached = mm_Asub[tileRow + 3][k];
-        acc[3] = BCached[0] * ACached.x + acc[3];
-        acc[3] = BCached[1] * ACached.y + acc[3];
-        acc[3] = BCached[2] * ACached.z + acc[3];
-        acc[3] = BCached[3] * ACached.w + acc[3];
+          for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
+              ACached = mm_Asub[tileRow + innerRow][k];
+              for (int innerCol = 0; innerCol < ColPerThread; innerCol++) {
+                  acc[innerRow][innerCol] += ACached * BCached[innerCol];
+              }
+          }
       }
 
       GroupMemoryBarrierWithGroupSync();
     }
 
     for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
+        float4 result = float4(acc[innerRow][0], acc[innerRow][1],
+                               acc[innerRow][2], acc[innerRow][3]);
           mm_write(globalRow + innerRow,
                    globalCol,
-                   acc[innerRow]);
+                   result);
     }
 }
