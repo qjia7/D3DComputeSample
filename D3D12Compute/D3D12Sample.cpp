@@ -15,9 +15,6 @@
 #include <chrono>
 #include <iostream>
 
-//#define USE_SLM_8X8_4X16
-//#define USE_SLM_4x4_16x16_v4
-#define USE_SLM_4x4_16x16_4_FLOATS
 #define PRINT_DATA
 
 namespace
@@ -45,6 +42,7 @@ D3D12Sample::D3D12Sample() :
     m_cbSrvDescriptorSize(0),
     m_constantBufferData{},
     mStorageType(STORAGETYPE::BYTEADDRESS_BUFFER),
+    mKernelType(KERNELTYPE::SLM_8X8_4X16),
     m_M(1024),
     m_N(1024),
     m_K(1024),
@@ -52,17 +50,7 @@ D3D12Sample::D3D12Sample() :
     m_tileN(128),
     m_tileK(64),
 	m_componentSize(4)
-{
-#ifdef USE_SLM_8X8_4X16
-    m_tileM = 32; m_tileN = 128; m_tileK = 64; m_componentSize = 4;
-#else
-#ifdef USE_SLM_4x4_16x16_v4
-    m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 4;
-#else
-    m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
-#endif  // USE_SLM_4x4_16x16_v4
-#endif  // USE_SLM_8X8_4X16
-}
+{}
 
 void D3D12Sample::Start(int argc, char *argv[])
 {
@@ -73,6 +61,7 @@ void D3D12Sample::Start(int argc, char *argv[])
         {
             std::cout << "-h, --help     List all the supported command flags." << std::endl;
             std::cout << "--storage-type texture|structured_buffer|byteAddress_buffer     Choose using which storage type to load/store data. The default one is byteAddress_buffer." << std::endl;
+            std::cout << "--kernel SLM_8X8_4X16|SLM_4x4_16x16_v4|SLM_4x4_16x16_float|SLM_4x4_16x16_4_FLOATS Choose which algorithm to run. The default one is SLM_8X8_4X16." << std::endl;
             std::cout << "--num-dispatch int_value     Determines how many command lists will be executed. The default value is 500" << std::endl;
             std::cout << "--M int_value     The rows of the output matrix [M,N]. The default value is 1024" << std::endl;
             std::cout << "--N int_value     The colums of the output matrix [M,N]. The default value is 1024" << std::endl;
@@ -93,6 +82,35 @@ void D3D12Sample::Start(int argc, char *argv[])
             else
             {
                 mStorageType = STORAGETYPE::BYTEADDRESS_BUFFER;
+            }
+        }
+        else if (cmd == "--kernel")
+        {
+            std::string kernelType = argv[i++ + 1];
+            if (kernelType == "SLM_8X8_4X16")
+            {
+                mKernelType = KERNELTYPE::SLM_8X8_4X16;
+                m_tileM = 32; m_tileN = 128; m_tileK = 64; m_componentSize = 4;
+            }
+            else if (kernelType == "SLM_4x4_16x16_v4")
+            {
+                mKernelType = KERNELTYPE::SLM_4x4_16x16_v4;
+                m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 4;
+            }
+            else if (kernelType == "SLM_4x4_16x16_float")
+            {
+                mKernelType = KERNELTYPE::SLM_4x4_16x16_float;
+                m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
+            }
+            else if (kernelType == "SLM_4x4_16x16_4_FLOATS")
+            {
+                mKernelType = KERNELTYPE::SLM_4x4_16x16_4_FLOATS;
+                m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
+            }
+            else
+            {
+                std::cout << "Unsupported kernel type. Please input a valide kernel type." << std::endl;
+                return;
             }
         }
         else if (cmd == "--num-dispatch")
@@ -306,19 +324,25 @@ void D3D12Sample::LoadAssets()
     }
     defines.push_back(terminator);
 
-#ifdef USE_SLM_8X8_4X16
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines.data(), nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
-#else
-#ifdef USE_SLM_4x4_16x16_v4
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_vec4.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
-#else
-#ifdef USE_SLM_4x4_16x16_4_FLOATS
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_4_floats.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
-#else
-    ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
-#endif // USE_SLM_4x4_16x16_4_FLOATS
-#endif // USE_SLM_4x4_16x16_v4
-#endif
+    if (mKernelType == KERNELTYPE::SLM_8X8_4X16)
+    {
+        ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", defines.data(), nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    }
+    else if (mKernelType == KERNELTYPE::SLM_4x4_16x16_v4)
+    {
+        ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_vec4.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    }
+    else if (mKernelType == KERNELTYPE::SLM_4x4_16x16_4_FLOATS)
+    {
+        ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_4_floats.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+
+    }
+    else
+    {
+        assert(mKernelType == KERNELTYPE::SLM_4x4_16x16_float);
+        ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    }
+
     descComputePSO.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
     ThrowIfFailed(m_d3d12Device->CreateComputePipelineState(&descComputePSO, IID_PPV_ARGS(&m_computePSO)));
     m_computePSO->SetName(L"Compute PSO");
