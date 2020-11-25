@@ -21,23 +21,6 @@ void initGLBuiltins(CS_INPUT input)
     gl_GlobalInvocationID = input.dx_GlobalInvocationID;
 };
 
-#ifdef USE_TEXTURE
-Texture2D<float4> src0 : register(t0);
-Texture2D<float4> src1 : register(t1);
-RWTexture2D<float4> dst : register(u0);
-
-float4 mm_readA(int row, int col) {
-    return src0.Load(int3(col, row, 0));
-}
-
-float4 mm_readB(int row, int col) {
-    return src1.Load(int3(col, row, 0));
-}
-
-void mm_write(int row, int col, float4 value) {
-    dst[uint2(col, row)] = value;
-}
-#else
 #ifdef USE_STRUCTURED_BUFFERS
 StructuredBuffer<float> src0 : register(t0);
 StructuredBuffer<float> src1 : register(t1);
@@ -95,7 +78,6 @@ void mm_write(int row, int col, float4 value) {
     dst.Store(4 * (index + 3), asuint(value.w));
 }
 #endif  // USE_STRUCTURED_BUFFERS
-#endif  // USE_TEXTURE
 
 static int RowPerThread = 4;
 static int ColPerThread = 4;
