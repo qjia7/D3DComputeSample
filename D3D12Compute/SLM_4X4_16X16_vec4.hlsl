@@ -44,7 +44,13 @@ StructuredBuffer<float4> src1 : register(t1);
 RWStructuredBuffer<float4> dst : register(u0);
 
 float4 mm_readA(int row, int col) {
-    return src0[row * (K / 4) + col];
+    if (row < M && col < K / 4)
+    {
+        return src0[row * (K / 4) + col];
+    }
+    else {
+        return float4(0, 0, 0, 0);
+    }
 }
 
 float4 mm_readB(int row, int col) {
@@ -52,7 +58,10 @@ float4 mm_readB(int row, int col) {
 }
 
 void mm_write(int row, int col, float4 value) {
-    dst[row * (N / 4) + col] = value;
+    if (row < M && col < N / 4)
+    {
+        dst[row * (N / 4) + col] = value;
+    }
 }
 #else
 ByteAddressBuffer src0 : register(t0);
@@ -60,8 +69,14 @@ ByteAddressBuffer src1 : register(t1);
 RWByteAddressBuffer dst : register(u0);
 
 float4 mm_readA(int row, int col) {
-    float4 result = asfloat(src0.Load4(16 * (row * (K / 4) + col)));
-    return result;
+    if (row < M && col < K / 4)
+    {
+        float4 result = asfloat(src0.Load4(16 * (row * (K / 4) + col)));
+        return result;
+    }
+    else {
+        return float4(0, 0, 0, 0);
+    }
 }
 
 float4 mm_readB(int row, int col) {
@@ -70,7 +85,10 @@ float4 mm_readB(int row, int col) {
 }
 
 void mm_write(int row, int col, float4 value) {
-    dst.Store4(16 * (row * (N / 4) + col), asuint(value));
+    if (row < M && col < N / 4)
+    {
+        dst.Store4(16 * (row * (N / 4) + col), asuint(value));
+    }
 }
 #endif  // USE_STRUCTURED_BUFFERS
 #endif  // USE_TEXTURE

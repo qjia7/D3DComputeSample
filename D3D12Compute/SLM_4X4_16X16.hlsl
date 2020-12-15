@@ -27,8 +27,15 @@ StructuredBuffer<float> src1 : register(t1);
 RWStructuredBuffer<float> dst : register(u0);
 
   float mm_readA(int row, int col) {
-    float result = src0[row * K + col];
-    return result;
+      if (row < M && col < K)
+      {
+          float result = src0[row * K + col];
+          return result;
+      }
+      else {
+          return 0.0;
+      }
+
   }
 
   float mm_readB(int row, int col) {
@@ -37,7 +44,10 @@ RWStructuredBuffer<float> dst : register(u0);
   }
 
   void mm_write(int row, int col, float value) {
-    dst[row * N + col] = value;
+      if (row < M && col < N)
+      {
+          dst[row * N + col] = value;
+      }
   }
 #else
 ByteAddressBuffer src0 : register(t0);
@@ -45,8 +55,14 @@ ByteAddressBuffer src1 : register(t1);
 RWByteAddressBuffer dst : register(u0);
 
 float mm_readA(int row, int col) {
-    float result = asfloat(src0.Load(4 * (row * K + col)));
-    return result;
+    if (row < M && col < K)
+    {
+        float result = asfloat(src0.Load(4 * (row * K + col)));
+        return result;
+    }
+    else {
+        return 0.0;
+    }
 }
 
 float mm_readB(int row, int col) {
@@ -55,7 +71,10 @@ float mm_readB(int row, int col) {
 }
 
 void mm_write(int row, int col, float value) {
-    dst.Store(4 * (row * N + col), asuint(value));
+    if (row < M && col < N)
+    {
+        dst.Store(4 * (row * N + col), asuint(value));
+    }
 }
 #endif  // USE_STRUCTURED_BUFFERS
 

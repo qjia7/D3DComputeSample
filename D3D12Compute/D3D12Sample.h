@@ -117,6 +117,8 @@ private:
 	UINT m_tileM;
 	UINT m_tileN;
 	UINT m_tileK;
+    UINT mDispatchX;
+    UINT mDispatchY;
 	UINT m_componentSize;
 	UINT m_computeCount = 500;
 	std::vector<float> buf1Data;

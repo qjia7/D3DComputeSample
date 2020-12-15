@@ -14,6 +14,7 @@
 #include "D3D12Sample.h"
 #include <chrono>
 #include <iostream>
+#include <cmath>
 
 #define PRINT_DATA
 
@@ -132,11 +133,6 @@ void D3D12Sample::Start(int argc, char *argv[])
                 std::cerr << "The output matrix height M should be larger than 0." << std::endl;
                 return;
             }
-            if (m_M % 256 != 0)
-            {
-                std::cerr << "The output matrix height M should be 256 aligned." << std::endl;
-                return;
-            }
         }
         else if (cmd == "--N")
         {
@@ -145,11 +141,6 @@ void D3D12Sample::Start(int argc, char *argv[])
             if (m_N <= 0)
             {
                 std::cerr << "The output matrix width N should be larger than 0." << std::endl;
-                return;
-            }
-            if (m_N % 256 != 0)
-            {
-                std::cerr << "The output matrix width N should be 256 aligned." << std::endl;
                 return;
             }
         }
@@ -162,14 +153,11 @@ void D3D12Sample::Start(int argc, char *argv[])
                 std::cerr << "The inner dimension length K should be larger than 0." << std::endl;
                 return;
             }
-            if (m_K % 256 != 0)
-            {
-                std::cerr << "The inner dimension length K should be 256 aligned." << std::endl;
-                return;
-            }
         }
     }
 
+    mDispatchX = ceil(float(m_N) / float(m_tileN));
+    mDispatchY = ceil(float(m_M) / float(m_tileM));
     LoadPipeline();
     LoadAssets();
     RunCompute();
@@ -758,8 +746,7 @@ void D3D12Sample::RunCompute()
         m_commandList->SetComputeRootDescriptorTable(2, gpuSrvDescriptorHandle);
 
         m_commandList->SetPipelineState(m_computePSO.Get());
-
-        m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
+        m_commandList->Dispatch(mDispatchX, mDispatchY, 1);
         m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
         m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
 

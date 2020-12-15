@@ -27,10 +27,16 @@ StructuredBuffer<float> src1 : register(t1);
 RWStructuredBuffer<float> dst : register(u0);
 
 float4 mm_readA(int row, int col) {
-    int index = row * K + col;
-    float4 result = float4(src0[index],
-        src0[index + 1], src0[index + 2], src0[index + 3]);
-    return result;
+    if (row < M && col < K)
+    {
+        int index = row * K + col;
+        float4 result = float4(src0[index],
+            src0[index + 1], src0[index + 2], src0[index + 3]);
+        return result;
+    }
+    else {
+        return float4(0, 0, 0, 0);
+    }
 }
 
 float4 mm_readB(int row, int col) {
@@ -41,11 +47,14 @@ float4 mm_readB(int row, int col) {
 }
 
 void mm_write(int row, int col, float4 value) {
-    int index = row * N + col;
-    dst[index] = value.x;
-    dst[index + 1] = value.y;
-    dst[index + 2] = value.z;
-    dst[index + 3] = value.w;
+    if (row < M && col < N)
+    {
+        int index = row * N + col;
+        dst[index] = value.x;
+        dst[index + 1] = value.y;
+        dst[index + 2] = value.z;
+        dst[index + 3] = value.w;
+    }
 }
 #else
 ByteAddressBuffer src0 : register(t0);
@@ -53,12 +62,18 @@ ByteAddressBuffer src1 : register(t1);
 RWByteAddressBuffer dst : register(u0);
 
 float4 mm_readA(int row, int col) {
-    int index = row * K + col;
-    float4 result = float4(asfloat(src0.Load(4 * index)),
-        asfloat(src0.Load(4 * (index + 1))),
-        asfloat(src0.Load(4 * (index + 2))),
-        asfloat(src0.Load(4 * (index + 3))));
-    return result;
+    if (row < M && col < K)
+    {
+        int index = row * K + col;
+        float4 result = float4(asfloat(src0.Load(4 * index)),
+            asfloat(src0.Load(4 * (index + 1))),
+            asfloat(src0.Load(4 * (index + 2))),
+            asfloat(src0.Load(4 * (index + 3))));
+        return result;
+    }
+    else {
+        return float4(0, 0, 0, 0);
+    }
 }
 
 float4 mm_readB(int row, int col) {
@@ -71,11 +86,14 @@ float4 mm_readB(int row, int col) {
 }
 
 void mm_write(int row, int col, float4 value) {
-    int index = row * N + col;
-    dst.Store(4 * (index), asuint(value.x));
-    dst.Store(4 * (index + 1), asuint(value.y));
-    dst.Store(4 * (index + 2), asuint(value.z));
-    dst.Store(4 * (index + 3), asuint(value.w));
+    if (row < M && col < N)
+    {
+        int index = row * N + col;
+        dst.Store(4 * (index), asuint(value.x));
+        dst.Store(4 * (index + 1), asuint(value.y));
+        dst.Store(4 * (index + 2), asuint(value.z));
+        dst.Store(4 * (index + 3), asuint(value.w));
+    }
 }
 #endif  // USE_STRUCTURED_BUFFERS
 
