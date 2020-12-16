@@ -50,7 +50,7 @@ D3D12Sample::D3D12Sample() :
     m_tileM(32),
     m_tileN(128),
     m_tileK(64),
-	m_componentSize(4)
+    m_componentSize(4)
 {}
 
 void D3D12Sample::Start(int argc, char *argv[])
@@ -107,6 +107,10 @@ void D3D12Sample::Start(int argc, char *argv[])
             {
                 mKernelType = KERNELTYPE::SLM_4x4_16x16_4_FLOATS;
                 m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
+            }
+            else if (kernelType == "MatMul_4x4_16x4_float") {
+                mKernelType = KERNELTYPE::MatMul_4x4_16x4_float;
+                m_tileM = 64; m_tileN = 16; m_tileK = 16; m_componentSize = 1;
             }
             else
             {
@@ -323,7 +327,10 @@ void D3D12Sample::LoadAssets()
     else if (mKernelType == KERNELTYPE::SLM_4x4_16x16_4_FLOATS)
     {
         ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_4_floats.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
-
+    }
+    else if (mKernelType == KERNELTYPE::MatMul_4x4_16x4_float)
+    {
+        ThrowIfFailed(D3DCompileFromFile(L"Matmul_4x4_16x4.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
     }
     else
     {
