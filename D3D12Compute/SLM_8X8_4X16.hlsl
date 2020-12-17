@@ -108,8 +108,8 @@ void mm_write(int row, int col, float4 value) {
 #endif  // USE_STRUCTURED_BUFFERS
 #endif  // USE_TEXTURE
 
-groupshared float4 atile[512];
-[numthreads(16, 4, 1)]
+groupshared float4 atile[LOCAL_GROUP_SIZE_Y * 8 * LOCAL_GROUP_SIZE_X];
+[numthreads(LOCAL_GROUP_SIZE_X, LOCAL_GROUP_SIZE_Y, 1)]
 void CSMain(CS_INPUT input)
 {
     initGLBuiltins(input);

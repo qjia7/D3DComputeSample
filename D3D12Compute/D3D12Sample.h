@@ -115,11 +115,13 @@ private:
 	UINT m_M;
 	UINT m_N;
 	UINT m_K;
-	UINT m_tileM;
-	UINT m_tileN;
 	UINT m_tileK;
+    UINT mWorkPerThreadX;
+    UINT mWorkPerThreadY;
     UINT mDispatchX;
     UINT mDispatchY;
+    UINT mLocalGroupSizeX;
+    UINT mLocalGroupSizeY;
 	UINT m_componentSize;
 	UINT m_computeCount = 500;
 	std::vector<float> buf1Data;

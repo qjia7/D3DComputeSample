@@ -231,7 +231,7 @@ void mm_write(int row, int col, float4 value) {
 #endif  // USE_STRUCTURED_BUFFERS
 #endif  // USE_TEXTURE
 
-[numthreads(4, 16, 1)]
+[numthreads(LOCAL_GROUP_SIZE_X, LOCAL_GROUP_SIZE_Y, 1)]
 void main(CS_INPUT input)
 {
     initGLBuiltins(input);

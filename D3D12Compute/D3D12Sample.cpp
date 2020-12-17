@@ -15,6 +15,7 @@
 #include <chrono>
 #include <iostream>
 #include <cmath>
+#include<string>
 
 #define PRINT_DATA
 
@@ -47,10 +48,12 @@ D3D12Sample::D3D12Sample() :
     m_M(1024),
     m_N(1024),
     m_K(1024),
-    m_tileM(32),
-    m_tileN(128),
     m_tileK(64),
-    m_componentSize(4)
+    m_componentSize(4),
+    mWorkPerThreadX(8),
+    mWorkPerThreadY(8),
+    mLocalGroupSizeX(16),
+    mLocalGroupSizeY(4)
 {}
 
 void D3D12Sample::Start(int argc, char *argv[])
@@ -62,11 +65,13 @@ void D3D12Sample::Start(int argc, char *argv[])
         {
             std::cout << "-h, --help     List all the supported command flags." << std::endl;
             std::cout << "--storage-type texture|structured_buffer|byteAddress_buffer     Choose using which storage type to load/store data. The default one is byteAddress_buffer." << std::endl;
-            std::cout << "--kernel SLM_8X8_4X16|SLM_4x4_16x16_v4|SLM_4x4_16x16_float|SLM_4x4_16x16_4_FLOATS Choose which algorithm to run. The default one is SLM_8X8_4X16." << std::endl;
+            std::cout << "--kernel SLM_8X8_4X16|SLM_4x4_16x16_v4|SLM_4x4_16x16_float|SLM_4x4_16x16_4_FLOATS|MatMul_4x4_16x4_float Choose which algorithm to run. The default one is SLM_8X8_4X16." << std::endl;
             std::cout << "--num-dispatch int_value     Determines how many command lists will be executed. The default value is 500" << std::endl;
             std::cout << "--M int_value     The rows of the output matrix [M,N]. The default value is 1024" << std::endl;
             std::cout << "--N int_value     The colums of the output matrix [M,N]. The default value is 1024" << std::endl;
             std::cout << "--K int_value     The inner dimension length of matrix multiplication. The default value is 1024" << std::endl;
+            std::cout << "--localX int_value     The local work group size X. The default value is 16" << std::endl;
+            std::cout << "--localY int_value     The local work group size Y. The default value is 16" << std::endl;
             return;
         }
         else if (cmd == "--storage-type")
@@ -91,26 +96,36 @@ void D3D12Sample::Start(int argc, char *argv[])
             if (kernelType == "SLM_8X8_4X16")
             {
                 mKernelType = KERNELTYPE::SLM_8X8_4X16;
-                m_tileM = 32; m_tileN = 128; m_tileK = 64; m_componentSize = 4;
+                mWorkPerThreadY = 8;
+                mWorkPerThreadX = 8;
+                m_componentSize = 4;
             }
             else if (kernelType == "SLM_4x4_16x16_v4")
             {
                 mKernelType = KERNELTYPE::SLM_4x4_16x16_v4;
-                m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 4;
+                mWorkPerThreadY = 4;
+                mWorkPerThreadX = 4;
+                m_componentSize = 4;
             }
             else if (kernelType == "SLM_4x4_16x16_float")
             {
                 mKernelType = KERNELTYPE::SLM_4x4_16x16_float;
-                m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
+                mWorkPerThreadY = 4;
+                mWorkPerThreadX = 4;
+                m_componentSize = 1;
             }
             else if (kernelType == "SLM_4x4_16x16_4_FLOATS")
             {
                 mKernelType = KERNELTYPE::SLM_4x4_16x16_4_FLOATS;
-                m_tileM = 64; m_tileN = 64; m_tileK = 64; m_componentSize = 1;
+                mWorkPerThreadY = 4;
+                mWorkPerThreadX = 4;
+                m_componentSize = 1;
             }
             else if (kernelType == "MatMul_4x4_16x4_float") {
                 mKernelType = KERNELTYPE::MatMul_4x4_16x4_float;
-                m_tileM = 64; m_tileN = 16; m_tileK = 16; m_componentSize = 1;
+                mWorkPerThreadY = 4;
+                mWorkPerThreadX = 4;
+                m_componentSize = 1;
             }
             else
             {
@@ -158,10 +173,34 @@ void D3D12Sample::Start(int argc, char *argv[])
                 return;
             }
         }
+        else if (cmd == "--localX")
+        {
+            char *pNext;
+            mLocalGroupSizeX = strtol(argv[i++ + 1], &pNext, 10);
+            if (mLocalGroupSizeX <= 0)
+            {
+                std::cerr << "The local group size x should be larger than 0." << std::endl;
+                return;
+            }
+        }
+        else if (cmd == "--localY")
+        {
+            char *pNext;
+            mLocalGroupSizeY = strtol(argv[i++ + 1], &pNext, 10);
+            if (mLocalGroupSizeY <= 0)
+            {
+                std::cerr << "The local group size y should be larger than 0." << std::endl;
+                return;
+            }
+        }
     }
 
-    mDispatchX = ceil(float(m_N) / float(m_tileN));
-    mDispatchY = ceil(float(m_M) / float(m_tileM));
+    int tileM = mLocalGroupSizeY * mWorkPerThreadY;
+    int tileN = mLocalGroupSizeX * mWorkPerThreadX;
+    m_tileK = mLocalGroupSizeX * 4; // 4 means to get 4 float data.
+    mDispatchX = ceil(float(m_N) / float(tileN));
+    mDispatchY = ceil(float(m_M) / float(tileM));
+    std::cout << "mDispatchX = " << mDispatchX << ", mDispatchY = " << mDispatchY << std::endl;
     LoadPipeline();
     LoadAssets();
     RunCompute();
@@ -314,6 +353,11 @@ void D3D12Sample::LoadAssets()
     {
         defines.push_back(useStructuredBuffer);
     }
+    // Pass the workgroup size.
+    std::string localXStr = std::to_string(mLocalGroupSizeX);
+    std::string localYStr = std::to_string(mLocalGroupSizeY);
+    defines.push_back({ "LOCAL_GROUP_SIZE_X", localXStr.c_str()});
+    defines.push_back({ "LOCAL_GROUP_SIZE_Y", localYStr.c_str()});
     defines.push_back(terminator);
 
     if (mKernelType == KERNELTYPE::SLM_8X8_4X16)

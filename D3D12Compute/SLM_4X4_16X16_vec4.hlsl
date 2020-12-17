@@ -95,13 +95,13 @@ void mm_write(int row, int col, float4 value) {
 
 static int RowPerThread = 4;
 static int ColPerThread = 4;
-static int TileInner = 64;
+static int TileInner = LOCAL_GROUP_SIZE_X * 4;
 static int VEC_SIZE = 4;
 
-groupshared float4 mm_Asub[64][16];
-groupshared float4 mm_Bsub[64][16];
+groupshared float4 mm_Asub[LOCAL_GROUP_SIZE_Y * 4][LOCAL_GROUP_SIZE_X];
+groupshared float4 mm_Bsub[LOCAL_GROUP_SIZE_Y * 4][LOCAL_GROUP_SIZE_X]; // LOCAL_GROUP_SIZE_X and LOCAL_GROUP_SIZE_Y must be same.
 
-[numthreads(16, 16, 1)]
+[numthreads(LOCAL_GROUP_SIZE_X, LOCAL_GROUP_SIZE_Y, 1)]
 void main(CS_INPUT input)
 {
     initGLBuiltins(input);
