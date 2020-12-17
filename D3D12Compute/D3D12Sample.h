@@ -106,6 +106,7 @@ private:
     {
         SLM_8X8_4X16,
         SLM_4x4_16x16_v4,
+        SLM_4x4_shared_A,
         SLM_4x4_16x16_float,
         SLM_4x4_16x16_4_FLOATS,
         MatMul_4x4_16x4_float
