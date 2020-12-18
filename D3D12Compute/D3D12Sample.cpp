@@ -207,7 +207,7 @@ void D3D12Sample::Start(int argc, char *argv[])
     m_tileK = mLocalGroupSizeX * 4; // 4 means to get 4 float data.
     mDispatchX = ceil(float(m_N) / float(tileN));
     mDispatchY = ceil(float(m_M) / float(tileM));
-    std::cout << "mDispatchX = " << mDispatchX << ", mDispatchY = " << mDispatchY << std::endl;
+    std::cout << " M = " << m_M << ", K = " << m_K << ", N = " << m_N<< ", mDispatchX = " << mDispatchX << ", mDispatchY = " << mDispatchY << std::endl;
     LoadPipeline();
     LoadAssets();
     RunCompute();
