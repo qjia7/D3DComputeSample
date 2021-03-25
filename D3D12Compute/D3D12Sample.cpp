@@ -65,7 +65,7 @@ void D3D12Sample::Start(int argc, char *argv[])
         {
             std::cout << "-h, --help     List all the supported command flags." << std::endl;
             std::cout << "--storage-type texture|structured_buffer|byteAddress_buffer     Choose using which storage type to load/store data. The default one is byteAddress_buffer." << std::endl;
-            std::cout << "--kernel SLM_8X8_4X16|SLM_4x4_16x16_v4|SLM_4x4_shared_A|SLM_4x4_16x16_float|SLM_4x4_16x16_4_FLOATS|MatMul_4x4_16x4_float Choose which algorithm to run. The default one is SLM_8X8_4X16." << std::endl;
+            std::cout << "--kernel SLM_8X8_4X16|SLM_4x4_16x16_v4|SLM_4x4_shared_A|SLM_4x4_16x16_float|SLM_4x4_16x16_4_FLOATS|MatMul_4x4_16x4_float|MatMul_vector_float Choose which algorithm to run. The default one is SLM_8X8_4X16." << std::endl;
             std::cout << "--num-dispatch int_value     Determines how many command lists will be executed. The default value is 500" << std::endl;
             std::cout << "--M int_value     The rows of the output matrix [M,N]. The default value is 1024" << std::endl;
             std::cout << "--N int_value     The colums of the output matrix [M,N]. The default value is 1024" << std::endl;
@@ -132,6 +132,12 @@ void D3D12Sample::Start(int argc, char *argv[])
                 mKernelType = KERNELTYPE::MatMul_4x4_16x4_float;
                 mWorkPerThreadY = 4;
                 mWorkPerThreadX = 4;
+                m_componentSize = 1;
+            }
+            else if (kernelType == "MatMul_vector_float") {
+                mKernelType = KERNELTYPE::MatMul_vector_float;
+                mWorkPerThreadY = 1;
+                mWorkPerThreadX = 2;
                 m_componentSize = 1;
             }
             else
@@ -202,12 +208,25 @@ void D3D12Sample::Start(int argc, char *argv[])
         }
     }
 
-    int tileM = mLocalGroupSizeY * mWorkPerThreadY;
-    int tileN = mLocalGroupSizeX * mWorkPerThreadX;
-    m_tileK = mLocalGroupSizeX * 4; // 4 means to get 4 float data.
-    mDispatchX = ceil(float(m_N) / float(tileN));
-    mDispatchY = ceil(float(m_M) / float(tileM));
-    std::cout << " M = " << m_M << ", K = " << m_K << ", N = " << m_N<< ", mDispatchX = " << mDispatchX << ", mDispatchY = " << mDispatchY << std::endl;
+    if (mKernelType != KERNELTYPE::MatMul_vector_float)
+    {
+
+        int tileM = mLocalGroupSizeY * mWorkPerThreadY;
+        int tileN = mLocalGroupSizeX * mWorkPerThreadX;
+        m_tileK = mLocalGroupSizeX * 4; // 4 means to get 4 float data.
+        mDispatchX = ceil(float(m_N) / float(tileN));
+        mDispatchY = ceil(float(m_M) / float(tileM));
+        std::cout << " M = " << m_M << ", K = " << m_K << ", N = " << m_N << ", mDispatchX = " << mDispatchX << ", mDispatchY = " << mDispatchY << std::endl;
+
+    }
+    else {
+        m_tileK = mLocalGroupSizeX * 4; // 4 means to get 4 float data.
+        int tile = mLocalGroupSizeX * mWorkPerThreadX;
+        mDispatchX = ceil(float(m_M * m_N) / float(tile));
+        mDispatchY = 1;
+        std::cout << " M = " << m_M << ", K = " << m_K << ", N = " << m_N << ", mDispatchX = " << mDispatchX << ", mDispatchY = " << mDispatchY << std::endl;
+    }
+
     LoadPipeline();
     LoadAssets();
     RunCompute();
@@ -363,8 +382,10 @@ void D3D12Sample::LoadAssets()
     // Pass the workgroup size.
     std::string localXStr = std::to_string(mLocalGroupSizeX);
     std::string localYStr = std::to_string(mLocalGroupSizeY);
+    std::string workPerThreadXStr = std::to_string(mWorkPerThreadX);
     defines.push_back({ "LOCAL_GROUP_SIZE_X", localXStr.c_str()});
     defines.push_back({ "LOCAL_GROUP_SIZE_Y", localYStr.c_str()});
+    defines.push_back({ "WORK_PER_THREAD_X", workPerThreadXStr.c_str()});
     defines.push_back(terminator);
 
     if (mKernelType == KERNELTYPE::SLM_8X8_4X16)
@@ -386,6 +407,10 @@ void D3D12Sample::LoadAssets()
     else if (mKernelType == KERNELTYPE::MatMul_4x4_16x4_float)
     {
         ThrowIfFailed(D3DCompileFromFile(L"Matmul_4x4_16x4.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    }
+    else if (mKernelType == KERNELTYPE::MatMul_vector_float)
+    {
+        ThrowIfFailed(D3DCompileFromFile(L"Matmul_vector.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
     }
     else
     {
