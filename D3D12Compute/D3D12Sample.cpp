@@ -140,6 +140,12 @@ void D3D12Sample::Start(int argc, char *argv[])
                 mWorkPerThreadX = 2;
                 m_componentSize = 1;
             }
+            else if (kernelType == "SLM_MatMul_vector_float") {
+                mKernelType = KERNELTYPE::SLM_MatMul_vector_float;
+                mWorkPerThreadY = 1;
+                mWorkPerThreadX = 2;
+                m_componentSize = 1;
+            }
             else
             {
                 std::cout << "Unsupported kernel type. Please input a valide kernel type." << std::endl;
@@ -208,7 +214,7 @@ void D3D12Sample::Start(int argc, char *argv[])
         }
     }
 
-    if (mKernelType != KERNELTYPE::MatMul_vector_float)
+    if (mKernelType != KERNELTYPE::MatMul_vector_float && mKernelType != SLM_MatMul_vector_float)
     {
 
         int tileM = mLocalGroupSizeY * mWorkPerThreadY;
@@ -409,6 +415,10 @@ void D3D12Sample::LoadAssets()
         ThrowIfFailed(D3DCompileFromFile(L"Matmul_4x4_16x4.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
     }
     else if (mKernelType == KERNELTYPE::MatMul_vector_float)
+    {
+        ThrowIfFailed(D3DCompileFromFile(L"Matmul_vector.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    }
+    else if (mKernelType == KERNELTYPE::SLM_MatMul_vector_float)
     {
         ThrowIfFailed(D3DCompileFromFile(L"Matmul_vector.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
     }

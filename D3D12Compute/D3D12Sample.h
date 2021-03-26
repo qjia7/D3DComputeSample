@@ -110,7 +110,8 @@ private:
         SLM_4x4_16x16_float,
         SLM_4x4_16x16_4_FLOATS,
         MatMul_4x4_16x4_float,
-        MatMul_vector_float
+        MatMul_vector_float,
+        SLM_MatMul_vector_float
     };
     KERNELTYPE mKernelType;
 
