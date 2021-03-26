@@ -122,6 +122,7 @@ void mm_write(int index, float value) {
 #endif  // USE_STRUCTURED_BUFFERS
 #endif  // USE_TEXTURE
 
+// Shared memory size should be ceil(K/4);
 groupshared float4 mm_Bsub[256];
 
 [numthreads(LOCAL_GROUP_SIZE_X, LOCAL_GROUP_SIZE_Y, 1)]
