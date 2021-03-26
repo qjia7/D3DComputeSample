@@ -70,38 +70,6 @@ float4 mm_readA(int row, int col) {
     }
 }
 
-float3 mm_readA(int row, int col, float3 value) {
-    if (row < M)
-    {
-        int index = row * K + col;
-        float3 value = float3(src0[index],
-            src0[index + 1],
-            src0[index + 2]);
-        return value;
-    }
-    else { return float3(0.0, 0.0, 0.0); }
-}
-
-float2 mm_readA(int row, int col, float2 value) {
-    if (row < M)
-    {
-        int index = row * K + col;
-        float2 value = float2(src0[index],
-            src0[index + 1]);
-        return value;
-    }
-    else { return float2(0.0, 0.0); }
-}
-
-float mm_readA(int row, int col, float value) {
-    if (row < M)
-    {
-        int index = row * K + col;
-        return src0[index];
-    }
-    else { return 0; }
-}
-
 float4 mm_readB(int row, int col) {
     int index = row * N + col;
     float4 result = float4(src1[index],
@@ -266,7 +234,7 @@ void main(CS_INPUT input)
     if (sharedDimVec4Remainder == 1) {
         BCached[0] = mm_readB(K - 1, globalCol);
         for (int i = 0; i < RowPerThread; i++) {
-            ACached.x = mm_readA(globalRow + i, K - 1, 0);
+            ACached.x = mm_readA(globalRow + i, K - 1);
             acc[i] = BCached[0] * ACached.x + acc[i];
         }
     }
@@ -274,7 +242,7 @@ void main(CS_INPUT input)
         BCached[0] = mm_readB(K - 2, globalCol);
         BCached[1] = mm_readB(K - 1, globalCol);
         for (int i = 0; i < RowPerThread; i++) {
-            ACached.xy = mm_readA(globalRow + i, K - 2, float2(0, 0));
+            ACached.xy = mm_readA(globalRow + i, K - 2);
             acc[i] = BCached[0] * ACached.x + acc[i];
             acc[i] = BCached[1] * ACached.y + acc[i];
         }
@@ -284,7 +252,7 @@ void main(CS_INPUT input)
         BCached[1] = mm_readB(K - 2, globalCol);
         BCached[2] = mm_readB(K - 1, globalCol);
         for (int i = 0; i < RowPerThread; i++) {
-            ACached.xyz = mm_readA(globalRow + i, K - 3, float3(0, 0, 0));
+            ACached.xyz = mm_readA(globalRow + i, K - 3);
             acc[i] = BCached[0] * ACached.x + acc[i];
             acc[i] = BCached[1] * ACached.y + acc[i];
             acc[i] = BCached[2] * ACached.z + acc[i];
