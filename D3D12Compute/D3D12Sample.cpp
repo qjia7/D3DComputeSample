@@ -389,9 +389,11 @@ void D3D12Sample::LoadAssets()
     std::string localXStr = std::to_string(mLocalGroupSizeX);
     std::string localYStr = std::to_string(mLocalGroupSizeY);
     std::string workPerThreadXStr = std::to_string(mWorkPerThreadX);
+    std::string workPerThreadYStr = std::to_string(mWorkPerThreadY);
     defines.push_back({ "LOCAL_GROUP_SIZE_X", localXStr.c_str()});
     defines.push_back({ "LOCAL_GROUP_SIZE_Y", localYStr.c_str()});
     defines.push_back({ "WORK_PER_THREAD_X", workPerThreadXStr.c_str()});
+    defines.push_back({ "WORK_PER_THREAD_Y", workPerThreadYStr.c_str()});
     defines.push_back(terminator);
 
     if (mKernelType == KERNELTYPE::SLM_8X8_4X16)

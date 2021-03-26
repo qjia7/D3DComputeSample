@@ -24,8 +24,6 @@ void initGLBuiltins(CS_INPUT input)
     gl_GlobalInvocationID = input.dx_GlobalInvocationID;
 };
 
-static int RowPerThread = 4;
-
 #ifdef USE_TEXTURE
 Texture2D<float4> src0 : register(t0);
 Texture2D<float4> src1 : register(t1);
@@ -236,10 +234,10 @@ void main(CS_INPUT input)
 {
     initGLBuiltins(input);
 
-    int globalRow = int(gl_GlobalInvocationID.y) * 4;
-    int globalCol = int(gl_GlobalInvocationID.x) * 4;
-
-    float4 acc[4];
+    int globalRow = int(gl_GlobalInvocationID.y) * WORK_PER_THREAD_Y;
+    int globalCol = int(gl_GlobalInvocationID.x) * WORK_PER_THREAD_X;
+    int RowPerThread = WORK_PER_THREAD_Y;
+    float4 acc[WORK_PER_THREAD_Y];
     float4 ACached;
     float4 BCached[4];
 
