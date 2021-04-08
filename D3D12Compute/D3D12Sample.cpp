@@ -152,6 +152,12 @@ void D3D12Sample::Start(int argc, char *argv[])
                 mWorkPerThreadX = 4;
                 m_componentSize = 1;
             }
+            else if (kernelType == "SLM_MatMul_vector_matrix_one") {
+                mKernelType = KERNELTYPE::SLM_MatMul_vector_matrix_one;
+                mWorkPerThreadY = 1;
+                mWorkPerThreadX = 1;
+                m_componentSize = 1;
+            }
             else
             {
                 std::cout << "Unsupported kernel type. Please input a valide kernel type." << std::endl;
@@ -433,6 +439,10 @@ void D3D12Sample::LoadAssets()
     else if (mKernelType == KERNELTYPE::SLM_MatMul_vector_matrix_float)
     {
         ThrowIfFailed(D3DCompileFromFile(L"SLM_Matmul_vector_matrix.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    }
+    else if (mKernelType == KERNELTYPE::SLM_MatMul_vector_matrix_one)
+    {
+        ThrowIfFailed(D3DCompileFromFile(L"SLM_Matmul_vector_matrix_one.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
     }
     else
     {
