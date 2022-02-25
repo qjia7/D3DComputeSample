@@ -65,7 +65,7 @@ void D3D12Sample::Start(int argc, char *argv[])
         {
             std::cout << "-h, --help     List all the supported command flags." << std::endl;
             std::cout << "--storage-type texture|structured_buffer|byteAddress_buffer     Choose using which storage type to load/store data. The default one is byteAddress_buffer." << std::endl;
-            std::cout << "--kernel SLM_8X8_4X16|SLM_4x4_16x16_v4|SLM_4x4_shared_A|SLM_4x4_16x16_float|SLM_4x4_16x16_4_FLOATS|MatMul_4x4_16x4_float|MatMul_vector_float Choose which algorithm to run. The default one is SLM_8X8_4X16." << std::endl;
+            std::cout << "--kernel SLM_8X8_4X16|SLM_4x4_16x16_v4|SLM_4x4_shared_A|SLM_4x4_16x16_float|SLM_4x4_16x16_float_coalesced|SLM_4x4_16x16_4_FLOATS|MatMul_4x4_16x4_float|MatMul_vector_float Choose which algorithm to run. The default one is SLM_8X8_4X16." << std::endl;
             std::cout << "--num-dispatch int_value     Determines how many command lists will be executed. The default value is 500" << std::endl;
             std::cout << "--M int_value     The rows of the output matrix [M,N]. The default value is 1024" << std::endl;
             std::cout << "--N int_value     The colums of the output matrix [M,N]. The default value is 1024" << std::endl;
@@ -117,6 +117,12 @@ void D3D12Sample::Start(int argc, char *argv[])
             else if (kernelType == "SLM_4x4_16x16_float")
             {
                 mKernelType = KERNELTYPE::SLM_4x4_16x16_float;
+                mWorkPerThreadY = 4;
+                mWorkPerThreadX = 4;
+                m_componentSize = 1;
+            }
+            else if (kernelType == "SLM_4x4_16x16_float_coalesced") {
+                mKernelType = KERNELTYPE::SLM_4x4_16x16_float_coalesced;
                 mWorkPerThreadY = 4;
                 mWorkPerThreadX = 4;
                 m_componentSize = 1;
@@ -443,6 +449,9 @@ void D3D12Sample::LoadAssets()
     else if (mKernelType == KERNELTYPE::SLM_MatMul_vector_matrix_one)
     {
         ThrowIfFailed(D3DCompileFromFile(L"SLM_Matmul_vector_matrix_one.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+    }
+    else if (mKernelType == KERNELTYPE::SLM_4x4_16x16_float_coalesced) {
+        ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16_coalesced.hlsl", defines.data(), nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
     }
     else
     {
