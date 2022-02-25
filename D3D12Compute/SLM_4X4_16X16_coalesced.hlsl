@@ -109,64 +109,92 @@ void main(CS_INPUT input)
 
     int numTiles = (dimInner - 1) / TileInner + 1;
 
-    float acc[4][4];
-    float ACached;
-    float BCached[4];
-
-    // Without this initialization strange values show up in acc.
-    for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
-      for (int innerCol = 0; innerCol < ColPerThread; innerCol++) {
-        acc[innerRow][innerCol] = 0.0;
+  float acc[4][4] = (float[4][4]) 0;
+  float ACached = 0.0f;
+  float BCached[4] = (float[4]) 0;
+  {
+    [loop] for (int innerRow = 0; (innerRow < 4); innerRow = (innerRow + 1)) {
+      {
+        [loop] for (int innerCol = 0; (innerCol < 4);
+                    innerCol = (innerCol + 1)) {
+          acc[min(uint(innerRow), 3u)][min(uint(innerCol), 3u)] = 0.0f;
+        }
       }
     }
-
-    // Loop over shared dimension.
-    for (int t = 0; t < numTiles; t++) {
-      // Load one tile of A into local memory.
-      for (int inputRow = localRow; inputRow < TileAOuter; inputRow += LOCAL_GROUP_SIZE_Y) {
-        for (int inputCol = localCol; inputCol < TileInner; inputCol += LOCAL_GROUP_SIZE_X) {
-          mm_Asub[inputRow][inputCol] = mm_readA(
-              newGlobalRow + inputRow,
-              t * TileInner + inputCol);
-        }
-      }
-      // Load one tile of B into local memory.
-      for (int inputRow = localRow; inputRow < TileInner; inputRow += LOCAL_GROUP_SIZE_Y) {
-        for (int inputCol = localCol; inputCol < TileBOuter; inputCol += LOCAL_GROUP_SIZE_X) {
-          mm_Bsub[inputRow][inputCol] = mm_readB(
-            t * TileInner + inputRow,
-            newGlobalCol + inputCol);
-        }
-      }
-
-      GroupMemoryBarrierWithGroupSync();
-
-      // Compute acc values for a single thread.
-      for (int k = 0; k < TileInner; k++) {
-        for (int inner = 0; inner < ColPerThread; inner++) {
-          BCached[inner] = mm_Bsub[k][tileCol + inner];
-        }
-
-        for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
-          ACached = mm_Asub[tileRow + innerRow][k];
-          for (int innerCol = 0; innerCol < ColPerThread; innerCol++) {
-            acc[innerRow][innerCol] += ACached * BCached[innerCol];
+  }
+  {
+    [loop] for (int t = 0; (t < numTiles); t = (t + 1)) {
+      {
+        [loop] for (int inputRow = localRow; (inputRow < 32);
+                    inputRow = (inputRow + 8)) {
+          {
+            [loop] for (int inputCol = localCol; (inputCol < 32);
+                        inputCol = (inputCol + 8)) {
+              mm_Asub[min(uint(inputRow), 31u)][min(uint(inputCol), 31u)] =
+                  mm_readA(
+                      (newGlobalRow + inputRow), ((t * 32) + inputCol));
+            }
           }
         }
       }
-
+      {
+        [loop] for (int inputRow = localRow; (inputRow < 32);
+                    inputRow = (inputRow + 8)) {
+          {
+            [loop] for (int inputCol = localCol; (inputCol < 32);
+                        inputCol = (inputCol + 8)) {
+              mm_Bsub[min(uint(inputRow), 31u)][min(uint(inputCol), 31u)] =
+                  mm_readB(
+                      ((t * 32) + inputRow), (newGlobalCol + inputCol));
+            }
+          }
+        }
+      }
+      GroupMemoryBarrierWithGroupSync();
+      {
+        [loop] for (int k = 0; (k < 32); k = (k + 1)) {
+          {
+            [loop] for (int inner = 0; (inner < 4); inner = (inner + 1)) {
+              BCached[min(uint(inner), 3u)] =
+                  mm_Bsub[min(uint(k), 31u)][min(uint((tileCol + inner)), 31u)];
+            }
+          }
+          {
+            [loop] for (int innerRow = 0; (innerRow < 4);
+                        innerRow = (innerRow + 1)) {
+              ACached = mm_Asub[min(uint((tileRow + innerRow)), 31u)][min(
+                  uint(k), 31u)];
+              {
+                [loop] for (int innerCol = 0; (innerCol < 4);
+                            innerCol = (innerCol + 1)) {
+                  acc[min(uint(innerRow), 3u)][min(uint(innerCol), 3u)] =
+                      (acc[min(uint(innerRow), 3u)][min(uint(innerCol), 3u)] +
+                       (ACached * BCached[min(uint(innerCol), 3u)]));
+                }
+              }
+            }
+          }
+        }
+      }
       GroupMemoryBarrierWithGroupSync();
     }
-
-    for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
-      for (int innerCol = 0; innerCol < ColPerThread; innerCol++) {
-
-        if ((globalCol + innerCol) < dimBOuter &&
-            (globalRow + innerRow) < dimAOuter) {
-          mm_write(globalRow + innerRow,
-                   globalCol + innerCol,
-                   acc[innerRow][innerCol]);
+  }
+  {
+    [loop] for (int innerRow = 0; (innerRow < 4); innerRow = (innerRow + 1)) {
+      {
+        [loop] for (int innerCol = 0; (innerCol < 4);
+                    innerCol = (innerCol + 1)) {
+          bool tint_tmp_1 = ((globalCol + innerCol) < dimBOuter);
+          if (tint_tmp_1) {
+            tint_tmp_1 = ((globalRow + innerRow) < dimAOuter);
+          }
+          if ((tint_tmp_1)) {
+            mm_write(
+                (globalRow + innerRow), (globalCol + innerCol),
+                acc[min(uint(innerRow), 3u)][min(uint(innerCol), 3u)]);
+          }
         }
       }
     }
+  }
 }
