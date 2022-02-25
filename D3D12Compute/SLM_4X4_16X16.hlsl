@@ -83,7 +83,7 @@ static int ColPerThread = 4;
 static int TileInner = LOCAL_GROUP_SIZE_X * 4;
 
 groupshared float mm_Asub[LOCAL_GROUP_SIZE_Y * 4][LOCAL_GROUP_SIZE_X * 4];
-groupshared float mm_Bsub[LOCAL_GROUP_SIZE_Y * 4][LOCAL_GROUP_SIZE_X * 4];
+groupshared float mm_Bsub[LOCAL_GROUP_SIZE_X * 4][LOCAL_GROUP_SIZE_X * 4];
 
 [numthreads(LOCAL_GROUP_SIZE_X, LOCAL_GROUP_SIZE_Y, 1)]
 void main(CS_INPUT input)
