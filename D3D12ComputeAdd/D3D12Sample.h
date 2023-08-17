@@ -94,8 +94,8 @@ private:
 	UINT m_workGroupSizeX;
 	UINT m_componentSize;
 	UINT m_computeCount = 2000;
-	std::vector<float> buf1Data;
-	std::vector<float> buf2Data;
+	std::vector<int> buf1Data;
+	std::vector<int> buf2Data;
 
 	void GetHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter);
     void CreateDevice(const ComPtr<IDXGIFactory4>& factory);
