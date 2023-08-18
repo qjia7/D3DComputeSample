@@ -16,6 +16,7 @@
 
 //#define USE_STRUCTURED_BUFFERS
 //#define USE_VEC4
+#define USE_INT
 #define PRINT_DATA
 
 namespace
@@ -43,7 +44,7 @@ D3D12Sample::D3D12Sample() :
     m_cbSrvDescriptorSize(0),
     m_constantBufferData{},
     m_dataSize(1024*1024),
-    m_workGroupSizeX(128),
+    m_workGroupSizeX(64),
     m_componentSize(1)
 {
 #ifdef USE_VEC4
@@ -203,6 +204,9 @@ void D3D12Sample::LoadAssets()
 #ifdef USE_VEC4
 		"USE_VEC4", "1",
 #endif
+#ifdef USE_INT
+        "USE_INT", "1",
+#endif
         nullptr, nullptr
     };
     ThrowIfFailed(D3DCompileFromFile(L"SLM_4x4_16x16.hlsl", defines, nullptr, "main", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
@@ -290,7 +294,7 @@ void D3D12Sample::LoadSizeDependentResources()
         const UINT elementCount = m_dataSize;
         for ( int i = 0; i < elementCount; ++i )
         {
-            buf1Data.push_back((float) rand() / float(RAND_MAX));
+            buf1Data.push_back(rand() % 200);
         }
         const UINT bufferSize = buf1Data.size() * sizeof(float);
 
@@ -342,7 +346,7 @@ void D3D12Sample::LoadSizeDependentResources()
         const UINT elementCount = m_dataSize;
         for ( int i = 0; i < elementCount; ++i )
         {
-            buf2Data.push_back((float) rand() / float(RAND_MAX));
+            buf2Data.push_back(rand() % 200);
         }
         const UINT bufferSize = buf2Data.size() * sizeof(float);
 
@@ -548,7 +552,7 @@ void D3D12Sample::RunCompute()
     float result = 0.0;
     int m = rand() % m_dataSize;
     D3D12_RANGE readbackBufferRange{ 0, outputBufferSize };
-    FLOAT * pReadbackBufferData{};
+    int * pReadbackBufferData{};
     ThrowIfFailed(readbackBuffer->Map(
         0,
         &readbackBufferRange,
@@ -556,12 +560,12 @@ void D3D12Sample::RunCompute()
 	bool hasError = false;
 	for (int i = 0; i < m_dataSize; i++)
 	{
-		float gpuResult = pReadbackBufferData[i];
-		float cpuResult = buf1Data[i] + buf2Data[i];
+		int gpuResult = pReadbackBufferData[i];
+		int cpuResult = buf1Data[i] + buf2Data[i];
 		if (abs(gpuResult - cpuResult) > 0.003)
 		{
 			hasError = true;
-			printf("The result is not correct at %d. Expected %f, actual %f", i, cpuResult, gpuResult);
+			printf("The result is not correct at %d. Expected %d, actual %d", i, cpuResult, gpuResult);
 			break;
 		}
 	}

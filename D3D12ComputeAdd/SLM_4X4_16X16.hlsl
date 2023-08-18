@@ -74,23 +74,59 @@ void mm_write(int index, float4 value) {
     dst.Store4(4 * (index * 4), asuint(value));
 }
 #else
-float mm_readA(int index) {
-    float result = asfloat(src0.Load(4 * index));
+#ifdef USE_INT
+int mm_readA(int index) {
+    int result = asint(src0.Load(4 * index));
     return result;
 }
 
-float mm_readB(int index) {
-    float result = asfloat(src1.Load(4 * index));
+int mm_readB(int index) {
+    int result = asint(src1.Load(4 * index));
     return result;
 }
 
-void mm_write(int index, float value) {
+void mm_write(int index, int value) {
     dst.Store(4 * index, asuint(value));
 }
+
+int tint_div(int lhs, int rhs) {
+    return (lhs / (((rhs == 0) | ((lhs == -2147483648) & (rhs == -1))) ? 1 : rhs));
+}
+int tint_mod(int lhs, int rhs) {
+    const int rhs_or_one = (((rhs == 0) | ((lhs == -2147483648) & (rhs == -1))) ? 1 : rhs);
+    if (any(((uint((lhs | rhs_or_one)) & 2147483648u) != 0u))) {
+        return (lhs - ((lhs / rhs_or_one) * rhs_or_one));
+    }
+    else {
+        return (lhs % rhs_or_one);
+    }
+}
+#else
+uint mm_readA(int index) {
+    uint result = asuint(src0.Load(4 * index));
+    return result;
+}
+
+uint mm_readB(int index) {
+    uint result = asuint(src1.Load(4 * index));
+    return result;
+}
+
+void mm_write(int index, uint value) {
+    dst.Store(4 * index, asuint(value));
+}
+uint tint_div(uint lhs, uint rhs) {
+    return (lhs / ((rhs == 0u) ? 1u : rhs));
+}
+
+uint tint_mod(uint lhs, uint rhs) {
+    return (lhs % ((rhs == 0u) ? 1u : rhs));
+}
+#endif  // USE_INT
 #endif  // USE_VEC4
 #endif  // USE_STRUCTURED_BUFFERS
 
-[numthreads(128, 1, 1)]
+[numthreads(64, 1, 1)]
 void main(CS_INPUT input)
 {
     initGLBuiltins(input);
@@ -98,7 +134,27 @@ void main(CS_INPUT input)
 #ifdef USE_VEC4
 	float4 result = mm_readA(index) + mm_readB(index);
 #else
-	float result = mm_readA(index) + mm_readB(index);
+#ifdef USE_INT
+    const int a = mm_readA(index);
+    const int b = mm_readB(index);
+    int c = 0;
+    {
+        for (int i = 1; (i < 200); i = (i + 1)) {
+            c = (c + (tint_div(a, i) + tint_mod(a, i)));
+            c = (c + (tint_div(b, i) + tint_mod(b, i)));
+        }
+    }
+#else
+    const uint a = mm_readA(index);
+    const uint b = mm_readB(index);
+    uint c = 0u;
+    {
+        for (uint i = 1u; (i < 200u); i = (i + 1u)) {
+            c = (c + (tint_div(a, i) + tint_mod(a, i)));
+            c = (c + (tint_div(b, i) + tint_mod(b, i)));
+        }
+    }
+#endif  // USE_INT
 #endif  // USE_VEC4
-	mm_write(index, result);
+	mm_write(index, c);
 }
